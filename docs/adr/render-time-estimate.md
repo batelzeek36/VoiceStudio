@@ -65,3 +65,25 @@ steps. Measured on one M1 Max (MPS, OmniVoice, 64 steps): a 66 s read took 276 s
 - Docs: `docs/` generation-parameters page gets a short "How long will it take?" section; CHANGELOG `[Unreleased]`
   one-liner.
 - Old installs start with an empty table and show "after your first render" once, then estimates.
+
+## Implementation notes
+
+Refinements made while building it, all within the decision above:
+
+- `render_timings` also stores `speed` (a number), so characters per second can be learned at speed 1. Besides the
+  200 rows per bucket there is a 5,000-row backstop across all buckets.
+- `num_step` is bucketed only for engines that declare `honors_num_step` (OmniVoice in process and in its sidecars,
+  VoxCPM2, dots.tts, Supertonic-3); for every other engine it is NULL, so a value the engine ignores never splits its
+  measurements. Adapters that host several models behind one id (mlx-audio, CosyVoice, sherpa-onnx, audio.cpp) are
+  keyed by engine and model.
+- Device is the routing answer for that engine on this host (`services/engine_routing`), plus `directml` for the native
+  loader, computed the same way by the recorder and the estimator so a render and its estimate always name one
+  bucket.
+- The rough fit pools every sample of the engine and device, rescaling each one's audio by its steps ratio, which is
+  the same as scaling `b` and leaving `a`; its range is widened by 20 to 25 percent.
+- The response also carries `reason` (`cold_start`, `remote`, `no_rate`), `audio_seconds`, the bucket, and `parts`:
+  planned seconds per chapter, which the live countdown re-fits as chapters finish (cached chapters count as instant,
+  one slow chapter bends the rest at most 4x, the chapter in progress waits at zero instead of going negative).
+- Code: `services/render_timing.py` (record), `services/render_fit.py` (model), `services/render_plan.py` and
+  `services/render_estimate.py` with `api/routers/render_estimate.py` (plan and price), and the Electron renderer's
+  `render-estimate-hint.tsx`, `render-estimate-inline.tsx` and `generation-progress.tsx` (show).
