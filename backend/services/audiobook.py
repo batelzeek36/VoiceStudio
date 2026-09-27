@@ -321,6 +321,34 @@ def _note_chunk_done() -> None:
         pass
 
 
+def normalized_spans(spans, language: Optional[str]) -> list[Span]:
+    """A chapter's spans with their text normalized for synthesis.
+
+    The one place a longform render normalizes span text, BEFORE either cache
+    key and before the lexicon pass (see ``_render_chapter_cached``); the
+    render-time estimate plans from the same spans.
+    """
+    from services.text_normalization import normalize_for_tts
+
+    return [Span(voice_id=s.voice_id, text=normalize_for_tts(s.text, language),
+                 pause_ms_after=s.pause_ms_after, speed=getattr(s, "speed", None),
+                 join=getattr(s, "join", None))
+            for s in spans]
+
+
+def span_paragraphs(text: str, lexicon: Optional[dict], paragraph_gap_ms: int) -> list[str]:
+    """The texts one span renders as: respelled by ``lexicon``, then one per
+    paragraph when a paragraph gap is set (else the whole span). Empty for a
+    span with no text (a pause-only span). Each is then split by the chunker."""
+    if not text:
+        return []
+    from services.chunked_tts import split_paragraphs
+    from services.pronunciation import apply_lexicon
+
+    text = apply_lexicon(text, lexicon)
+    return (split_paragraphs(text) if paragraph_gap_ms > 0 else []) or [text]
+
+
 def _gap_after_span(span: Span, line_gap_ms: int, paragraph_gap_ms: int) -> int:
     if span.pause_ms_after > 0 or span.join == "continue":
         return 0
@@ -386,9 +414,6 @@ def synthesize_chapter(
     from services.chunked_tts import (concatenate_audio_chunks,
                                       join_rendered_chunks,
                                       split_text_into_chunks)
-    from services.pronunciation import apply_lexicon
-
-    from services.chunked_tts import split_paragraphs
 
     items: list = []  # ("a", tensor) for audio, ("s", n_samples) for silence
     pending_gap_ms = 0  # join silence owed before the next spoken span
@@ -399,10 +424,7 @@ def synthesize_chapter(
     planned_gap_ms = 0
     total_join_ms = 0
     for span in spans:
-        text = apply_lexicon(span.text, lexicon) if span.text else ""
-        paragraphs = (split_paragraphs(text) if paragraph_gap_ms > 0 else []) or [text]
-        if not span.text:
-            paragraphs = []
+        paragraphs = span_paragraphs(span.text, lexicon, paragraph_gap_ms)
         paragraphs_by_span.append(paragraphs)
         if span.text:
             total_join_ms += planned_gap_ms + max(0, len(paragraphs) - 1) * paragraph_gap_ms
