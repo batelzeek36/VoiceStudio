@@ -33,7 +33,7 @@ it('marks rough estimates and explains the calibration render', () => {
     seconds: null,
   };
   expect(estimateLine(cold, i18next.t, 'en')?.text).toBe(
-    'Estimate appears after your first render on this machine',
+    'Estimate appears after a few renders on this machine',
   );
   expect(estimateLine({ ...cold, reason: 'remote' }, i18next.t, 'en')).toBeNull();
   expect(estimateLine(null, i18next.t, 'en')).toBeNull();

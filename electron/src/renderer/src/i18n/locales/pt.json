@@ -3203,13 +3203,13 @@
   "renderEstimate": {
     "about": "Cerca de {{time}} para renderizar",
     "roughly": "Aproximadamente {{time}} para renderizar",
-    "cold": "A estimativa aparece após a primeira renderização neste computador",
+    "cold": "A estimativa aparece após algumas renderizações neste computador",
     "left": "Faltam cerca de {{time}}",
     "finishing": "Finalizando",
     "range": "Normalmente de {{low}} a {{high}} neste computador",
     "rough_hint": "Calculada a partir de renderizações com outras configurações de qualidade. Fica exata após uma renderização com estas configurações.",
     "inline_about": "renderização de cerca de {{time}}",
     "inline_roughly": "renderização de aproximadamente {{time}}",
-    "inline_cold": "o tempo de renderização aparece após a primeira renderização neste computador"
+    "inline_cold": "o tempo de renderização aparece após algumas renderizações neste computador"
   }
 }

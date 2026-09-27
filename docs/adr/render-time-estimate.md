@@ -84,6 +84,8 @@ Refinements made while building it, all within the decision above:
 - The response also carries `reason` (`cold_start`, `remote`, `no_rate`), `audio_seconds`, the bucket, and `parts`:
   planned seconds per chapter, which the live countdown re-fits as chapters finish (cached chapters count as instant,
   one slow chapter bends the rest at most 4x, the chapter in progress waits at zero instead of going negative).
+- The calibration message reads "Estimate appears after a few renders on this machine": the threshold is three
+  calls, and one short take is one call, so "after your first render" would be false after a first short take.
 - Code: `services/render_timing.py` (record), `services/render_fit.py` (model), `services/render_plan.py` and
   `services/render_estimate.py` with `api/routers/render_estimate.py` (plan and price), and the Electron renderer's
   `render-estimate-hint.tsx`, `render-estimate-inline.tsx` and `generation-progress.tsx` (show).

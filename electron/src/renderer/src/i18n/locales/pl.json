@@ -3205,13 +3205,13 @@
   "renderEstimate": {
     "about": "Około {{time}} renderowania",
     "roughly": "Mniej więcej {{time}} renderowania",
-    "cold": "Szacunek pojawi się po pierwszym renderowaniu na tym komputerze",
+    "cold": "Szacunek pojawi się po kilku renderowaniach na tym komputerze",
     "left": "Zostało około {{time}}",
     "finishing": "Kończenie",
     "range": "Zwykle od {{low}} do {{high}} na tym komputerze",
     "rough_hint": "Wyliczone z renderowań przy innych ustawieniach jakości. Będzie dokładne po renderowaniu z tymi ustawieniami.",
     "inline_about": "renderowanie około {{time}}",
     "inline_roughly": "renderowanie mniej więcej {{time}}",
-    "inline_cold": "czas renderowania pojawi się po pierwszym renderowaniu na tym komputerze"
+    "inline_cold": "czas renderowania pojawi się po kilku renderowaniach na tym komputerze"
   }
 }

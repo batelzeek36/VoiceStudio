@@ -36,7 +36,7 @@ metadata and the backend fallback mirror it.
 
 ### Changed
 
-- Render time is estimated from your own machine's renders: beside Synthesize, after the Stories and Audiobook runtime, and as a live countdown; the first render calibrates it
+- Render time is estimated from your own machine's renders: beside Synthesize, after the Stories and Audiobook runtime, and as a live countdown; your first few renders calibrate it
 - OmniVoice sidecars reuse installed speech recognition for short references without transcripts, matching in-process cloning (#2320)
 - Electron recovers from OS-denied default backend ports without changing explicitly configured ports (#2358) — thanks @rishi2288!
 - Home opens directly on project actions, and Integrations lists only connectors with completed in-app setup (#2351)
