@@ -209,6 +209,26 @@ _BASE_SCHEMA = """
     );
     CREATE INDEX IF NOT EXISTS idx_call_sessions_created ON call_sessions(created_at);
 
+    -- Render-time estimate (docs/adr/render-time-estimate.md): one row per
+    -- completed synthesis call, so estimates come from THIS machine's own
+    -- speed. Numbers and identifiers only (no text, voice or path); kept to
+    -- the newest rows per (engine, device, num_step) by
+    -- services/render_timing.py; never sent anywhere. Existing DBs get it via
+    -- alembic 0013_render_timings (dual-path discipline).
+    CREATE TABLE IF NOT EXISTS render_timings (
+        id INTEGER PRIMARY KEY,
+        engine TEXT NOT NULL,
+        device TEXT NOT NULL,
+        num_step INTEGER,
+        text_chars INTEGER NOT NULL,
+        audio_seconds REAL NOT NULL,
+        wall_seconds REAL NOT NULL,
+        speed REAL,
+        created_at REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_render_timings_bucket
+        ON render_timings(engine, device, num_step, id);
+
     -- Remote GPU workers (docs/remote-workers.md). Opt-in: an install with no
     -- remote workers never writes a row here and behaves exactly as before.
     --

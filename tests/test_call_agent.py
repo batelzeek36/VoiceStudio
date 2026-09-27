@@ -809,6 +809,14 @@ def _alembic_upgrade(db_path):
     command.upgrade(cfg, "head")
 
 
+def _alembic_head():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    root = os.path.dirname(os.path.dirname(__file__))
+    return ScriptDirectory.from_config(Config(os.path.join(root, "alembic.ini"))).get_current_head()
+
+
 def test_migration_adds_call_sessions_and_matches_the_base_schema(tmp_path, monkeypatch):
     from core.db import _BASE_SCHEMA
 
@@ -826,7 +834,9 @@ def test_migration_adds_call_sessions_and_matches_the_base_schema(tmp_path, monk
     with sqlite3.connect(db_path) as conn:
         migrated = [(r[1], r[2].upper(), r[3], r[5]) for r in conn.execute("PRAGMA table_info(call_sessions)")]
         assert conn.execute("SELECT * FROM voice_profiles").fetchall() == [("keep", "Mine")]
-        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0012_call_sessions"
+        # Stamped at head, whichever migration is newest: pinning this file's
+        # own revision broke the test every time a later migration landed.
+        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == _alembic_head()
     fresh = [(r[1], r[2].upper(), r[3], r[5]) for r in canon.execute("PRAGMA table_info(call_sessions)")]
     norm = lambda cols: [(n, {"FLOAT": "REAL"}.get(t, t), nn, pk) for n, t, nn, pk in cols]  # noqa: E731
     assert norm(migrated) == norm(fresh)

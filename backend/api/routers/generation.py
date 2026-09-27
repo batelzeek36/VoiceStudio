@@ -942,9 +942,11 @@ def _run_inference(
     num_step, guidance_scale, speed, t_shift, denoise,
     postprocess_output, layer_penalty_factor, position_temperature,
     class_temperature, used_seed, effect_preset="broadcast",
-    max_chunk_chars=None, crossfade_ms=None, *, dropped_sink=None,
+    max_chunk_chars=None, crossfade_ms=None, *, dropped_sink=None, timing=None,
 ):
     import torch
+    from services.render_timing import UNTIMED
+    timing = timing or UNTIMED
     try:
         if used_seed is not None:
             torch.manual_seed(used_seed)
@@ -961,7 +963,7 @@ def _run_inference(
 
         def _gen(gen_text, gen_duration):
             """One generate call for this request's voice, reference encoded once."""
-            return trace_call("synthesis", generate_with_cached_ref,
+            return timing.call(gen_text, speed, generate_with_cached_ref,
                 model, ref_audio=ref_audio_path, ref_text=ref_text,
                 text=gen_text, language=language, instruct=instruct,
                 duration=gen_duration, num_step=num_step,
@@ -1026,7 +1028,7 @@ def _run_backend_inference(
     used_seed, effect_preset="broadcast",
     max_chunk_chars=None, crossfade_ms=None, *, t_shift=None,
     layer_penalty_factor=None, position_temperature=None,
-    class_temperature=None, dropped_sink=None,
+    class_temperature=None, dropped_sink=None, timing=None,
 ):
     """Engine-aware twin of :func:`_run_inference` (issue #312).
 
@@ -1037,6 +1039,8 @@ def _run_backend_inference(
     narrower protocol unchanged.
     """
     import torch
+    from services.render_timing import UNTIMED
+    timing = timing or UNTIMED
     try:
         if used_seed is not None:
             torch.manual_seed(used_seed)
@@ -1080,7 +1084,7 @@ def _run_backend_inference(
                 if native_proxy and first_span and used_seed is not None:
                     span_kwargs["seed"] = used_seed
                 first_span = False
-                return trace_call("synthesis", backend.generate, span_text, duration=None, **span_kwargs)
+                return timing.call(span_text, speed, backend.generate, span_text, duration=None, **span_kwargs)
             audio_out = _render_with_pauses(_gen_span, segments, sr)
         else:
             # Wave 1.2: sentence-boundary chunking for long text (see
@@ -1100,7 +1104,7 @@ def _run_backend_inference(
                     chunk_kwargs = dict(gen_kwargs)
                     if native_proxy and used_seed is not None:
                         chunk_kwargs["seed"] = used_seed + i
-                    parts.append(trace_call("synthesis", backend.generate,
+                    parts.append(timing.call(chunk_text, speed, backend.generate,
                         chunk_text, duration=None, **chunk_kwargs
                     ))
                     _note_generate_progress()
@@ -1110,7 +1114,7 @@ def _run_backend_inference(
             else:
                 if native_proxy and used_seed is not None:
                     gen_kwargs["seed"] = used_seed
-                audio_out = trace_call("synthesis", backend.generate, text, duration=duration, **gen_kwargs)
+                audio_out = timing.call(text, speed, backend.generate, text, duration=duration, **gen_kwargs)
 
         return _apply_effect_chain(
             audio_out, sr, effect_preset,
@@ -1781,6 +1785,20 @@ async def generate_speech(
                 headers={"Retry-After": "30", "X-OmniVoice-Retryable": "true"},
             )
 
+    # Render-time estimate (docs/adr/render-time-estimate.md): every local
+    # synthesis call of this request is timed on THIS machine. A remote render
+    # runs elsewhere and records nothing here.
+    from services import render_timing
+    _timing = render_timing.UNTIMED
+    if not _remote:
+        _timing = await asyncio.to_thread(
+            render_timing.for_render, engine_id, backend_cls, num_step=num_step,
+            sample_rate=(
+                (lambda: _backend.sample_rate) if _backend is not None
+                else (lambda: getattr(_model, "sampling_rate", None) or 24000)
+            ),
+        )
+
     ref_audio_path = None
     cleanup_ref = False
     ref_lease = None
@@ -2186,7 +2204,7 @@ async def generate_speech(
                     torch.manual_seed(used_seed + i)
                 if _backend is not None:
                     _lang = None if (language and language.lower() == "auto") else language
-                    raw = trace_call("synthesis", _backend.generate,
+                    raw = _timing.call(chunk_text, speed, _backend.generate,
                         chunk_text, duration=None, language=_lang,
                         ref_audio=ref_audio_path, ref_text=ref_text,
                         instruct=instruct, num_step=num_step,
@@ -2215,7 +2233,7 @@ async def generate_speech(
                     # Same cached-reference path as _run_inference: chunk 0 encodes
                     # the reference, chunks 1..N hit the cache instead of re-encoding.
                     from services.tts_backend import generate_with_cached_ref
-                    raw = trace_call("synthesis", generate_with_cached_ref,
+                    raw = _timing.call(chunk_text, speed, generate_with_cached_ref,
                         _model, ref_audio=ref_audio_path, ref_text=ref_text,
                         text=chunk_text, language=language, instruct=instruct,
                         duration=None, num_step=num_step,
@@ -2278,7 +2296,7 @@ async def generate_speech(
                                     layer_penalty_factor=layer_penalty_factor,
                                     position_temperature=position_temperature,
                                     class_temperature=class_temperature,
-                                    dropped_sink=_dropped_sink,
+                                    dropped_sink=_dropped_sink, timing=_timing,
                                 ),
                                 what="TTS generate",
                                 min_vram_gb=_engine_min_vram_gb,
@@ -2306,6 +2324,7 @@ async def generate_speech(
                                     layer_penalty_factor, position_temperature,
                                     class_temperature, used_seed, effect_preset,
                                     max_chunk_chars, crossfade_ms, dropped_sink=_dropped_sink,
+                                    timing=_timing,
                                 ),
                                 what="TTS generate",
                                 min_vram_gb=_engine_min_vram_gb,
@@ -2510,7 +2529,7 @@ async def generate_speech(
                     layer_penalty_factor=layer_penalty_factor,
                     position_temperature=position_temperature,
                     class_temperature=class_temperature,
-                    dropped_sink=_dropped_text,
+                    dropped_sink=_dropped_text, timing=_timing,
                 )
             else:
                 _local_render = functools.partial(
@@ -2520,6 +2539,7 @@ async def generate_speech(
                     postprocess_output, layer_penalty_factor, position_temperature,
                     class_temperature, used_seed, effect_preset,
                     max_chunk_chars, crossfade_ms, dropped_sink=_dropped_text,
+                    timing=_timing,
                 )
             audio_tensor = await _run_with_reference_lease(
                 ref_lease,

@@ -243,6 +243,12 @@ class TTSBackend(ABC):
     #: so this is a discoverability hint, not an enforcement gate.
     supports_emotion: bool = False
 
+    #: Whether ``generate`` reads the ``num_step`` kwarg (diffusion / flow
+    #: steps). The render-time estimate (services/render_timing.py) buckets
+    #: this machine's timings by steps only for engines that honour them, so
+    #: a value an engine ignores never splits its measurements. Default False.
+    honors_num_step: bool = False
+
     def ensure_ready(self) -> None:
         """Load model weights now (blocking), so callers can separate the
         LOAD budget from the GENERATE budget (#1033/#1037 class).
@@ -1413,6 +1419,7 @@ class OmniVoiceBackend(TTSBackend):
     id = "omnivoice"
     display_name = "VoiceStudio (k2-fsa/OmniVoice, 600+ languages)"
     gpu_compat = ("cuda", "rocm", "mps", "cpu")
+    honors_num_step = True  # unmasking steps; cost scales with them
     # Derived from the pool's own per-job budget (_GPU_VRAM_PER_JOB_GB = 5.0 in
     # model_manager, itself measured from the ~1.6 GB forward + autoregressive
     # decode and the co-loaded WhisperX on the clone path), plus room for the
@@ -1801,6 +1808,7 @@ class VoxCPM2Backend(TTSBackend):
     """
 
     id = "voxcpm2"
+    honors_num_step = True  # num_step -> inference_timesteps
     display_name = "VoxCPM2 (30 langs, studio 48 kHz, voice design)"
     supports_voice_design = True
     # _prepare_voxcpm_ref keeps the first _VOXCPM_REF_MAX_S after silence trim.

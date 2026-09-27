@@ -389,6 +389,7 @@ def synthesize_chapter(
     trim_edges: bool = False,
     lexicon: Optional[dict] = None,
     segment_cache: Optional["object"] = None,
+    timing: Optional["object"] = None,
 ):
     """Render a chapter's spans to one waveform via an injected ``synth``.
 
@@ -405,12 +406,15 @@ def synthesize_chapter(
     moment it finishes — so a one-sentence edit re-renders one segment and an
     interrupted chapter resumes from its finished segments. Pauses are
     synthesized silence and never touch the cache.
+    ``timing`` (a :mod:`services.render_timing` context) records each engine
+    call for the render-time estimate; ``None`` records nothing.
 
     Returns ``(audio_tensor, duration_seconds)``. torch + chunked_tts are
     imported lazily so this module stays import-light for the pure parser path.
     """
     import torch
     from core.render_trace import call as trace_call
+    from services.render_timing import UNTIMED
     from services.chunked_tts import (concatenate_audio_chunks,
                                       join_rendered_chunks,
                                       split_text_into_chunks)
@@ -460,7 +464,8 @@ def synthesize_chapter(
                     rendered = []
                     for c in chunks:
                         _stop_if_abandoned()
-                        rendered.append(trace_call("synthesis", synth, c, span.voice_id, span.speed))
+                        rendered.append((timing or UNTIMED).call(
+                            c, span.speed, synth, c, span.voice_id, span.speed))
                         _note_chunk_done()
                     # Deliberately NOT pre-filtered (#1330). Dropping the empties
                     # here both hid them — a chapter would come back short with
