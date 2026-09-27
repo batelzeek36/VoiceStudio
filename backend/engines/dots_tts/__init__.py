@@ -71,6 +71,7 @@ class DotsTTSBackend(SubprocessBackend):
         "dots.tts (2B, 24 langs, zero-shot clone, CUDA/CPU, 48 kHz, Apache-2.0)"
     )
     supports_voice_design = False  # requires ref audio for timbre cloning
+    honors_num_step = True  # num_step -> flow-matching num_steps
     # dots.tts emits 48 kHz (verified via checkpoint vocoder.sample_rate).
     _DEFAULT_SAMPLE_RATE = 48000
     # CUDA + CPU only; no MPS branch in upstream runtime.py.

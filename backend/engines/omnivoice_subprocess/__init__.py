@@ -48,6 +48,7 @@ class OmniVoiceSubprocessBackend(SubprocessBackend):
     id = "omnivoice-subprocess"
     display_name = "OmniVoice (subprocess-isolated, killable on timeout)"
     _DEFAULT_SAMPLE_RATE = 24000
+    honors_num_step = True  # the sidecar forwards num_step to model.generate
     gpu_compat = ("cuda", "rocm", "mps", "cpu")
     # Match OmniVoiceBackend: the measured floor below which a render that
     # should take seconds runs for minutes (the #1226/#1222 4 GB reports).

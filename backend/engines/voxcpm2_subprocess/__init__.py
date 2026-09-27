@@ -42,6 +42,7 @@ class VoxCPM2SubprocessBackend(SubprocessBackend):
     id = "voxcpm2"
     display_name = "VoxCPM2 (30 langs, studio 48 kHz, voice design)"
     supports_voice_design = True
+    honors_num_step = True  # num_step -> inference_timesteps
     applies_own_mastering = True  # native 48 kHz studio output — skip apply_mastering()
     gpu_compat = ("cuda", "mps", "cpu")
     _DEFAULT_SAMPLE_RATE = 48_000

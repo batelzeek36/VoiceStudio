@@ -52,6 +52,7 @@ from services.longform_render import (
     prune_cache_dir,
 )
 from services import longform_resume  # pure (no torch) — durable resume manifest
+from services import render_timing  # render-time estimate: per-call timings
 
 logger = logging.getLogger("omnivoice.audiobook")
 router = APIRouter()
@@ -535,6 +536,16 @@ def _omnivoice_sampling_kwargs(opts: ExpressiveOptions) -> dict:
     return kw
 
 
+def _engine_num_step(cls, opts: ExpressiveOptions):
+    """The ``num_step`` a longform render hands this engine (None: its own
+    default), resolved exactly as :func:`_build_synth` builds the call."""
+    from services.tts_backend import OmniVoiceBackend
+
+    if cls is OmniVoiceBackend or getattr(cls, "supports_native_omnivoice_controls", False):
+        return _omnivoice_sampling_kwargs(opts)["num_step"]
+    return opts.num_step
+
+
 def _generic_extra_kwargs(opts: ExpressiveOptions) -> dict:
     """Extra generate kwargs for a non-VoiceStudio engine. UNSET → empty dict →
     byte-identical to the pre-#1208 generic call. Only present knobs are added,
@@ -670,7 +681,7 @@ async def _prepare_synth(
 
 
 def _render_chapter_cached(chapter, synth, sr, engine_id, resolve, cache_dir, lexicon=None,
-                           language=None, opts=None, voice_map=None):
+                           language=None, opts=None, voice_map=None, timing=None):
     """Render one chapter, content-addressed so a re-run reuses it (resume).
 
     Returns ``(wav_path, duration_s, was_cached, seg_stats)``. Two cache
@@ -844,7 +855,8 @@ def _render_chapter_cached(chapter, synth, sr, engine_id, resolve, cache_dir, le
                              vary_repeats=opts.vary_repeats,
                              legacy_voice_sigs=legacy_voice_sigs)
     audio, dur = synthesize_chapter(spans, synth, sr, lexicon=lexicon,
-                                    segment_cache=seg_cache, **opts.join_kwargs())
+                                    segment_cache=seg_cache, timing=timing,
+                                    **opts.join_kwargs())
     # Invisible provenance mark on the assembled chapter (#1169), tensor stage,
     # before the WAV lands in the cache — this single site covers every
     # longform front door (/audiobook, /longform/render [Stories],
@@ -971,10 +983,15 @@ async def _run_chapter(chapter, *, operation="audiobook", decision, job, default
             # non-catalogue id. Keep the canonical host/text policy available;
             # registered production engines still add their routing metadata.
             timeout_engine = None
+        # Render-time estimate: time this chapter's engine calls on this machine.
+        timing = await asyncio.to_thread(
+            render_timing.for_render, local_engine, timeout_engine,
+            num_step=_engine_num_step(timeout_engine, opts), sample_rate=sr,
+        ) if timeout_engine is not None else render_timing.UNTIMED
         return gpu_gateway.LocalCall(
             fn=lambda: _render_chapter_cached(
                 chapter, synth, sr, local_engine, resolve, cache_dir, lexicon,
-                language, opts, voice_map,
+                language, opts, voice_map, timing=timing,
             ),
             what="Audiobook chapter",
             timeout=generate_timeout_s(
