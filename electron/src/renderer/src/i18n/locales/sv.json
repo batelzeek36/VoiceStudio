@@ -2786,13 +2786,13 @@
   "renderEstimate": {
     "about": "Cirka {{time}} att rendera",
     "roughly": "Ungefär {{time}} att rendera",
-    "cold": "Uppskattningen visas efter din första rendering på den här datorn",
+    "cold": "Uppskattningen visas efter några renderingar på den här datorn",
     "left": "Cirka {{time}} kvar",
     "finishing": "Slutför",
     "range": "Oftast {{low}} till {{high}} på den här datorn",
     "rough_hint": "Beräknad från renderingar med andra kvalitetsinställningar. Den blir exakt efter en rendering med de här inställningarna.",
     "inline_about": "rendering cirka {{time}}",
     "inline_roughly": "rendering ungefär {{time}}",
-    "inline_cold": "renderingstiden visas efter din första rendering på den här datorn"
+    "inline_cold": "renderingstiden visas efter några renderingar på den här datorn"
   }
 }

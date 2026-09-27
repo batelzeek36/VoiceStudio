@@ -206,7 +206,7 @@ describe('ActionBar', () => {
     };
     render(<ActionBar />);
     expect(
-      screen.getByText('Estimate appears after your first render on this machine'),
+      screen.getByText('Estimate appears after a few renders on this machine'),
     ).toBeVisible();
   });
 });

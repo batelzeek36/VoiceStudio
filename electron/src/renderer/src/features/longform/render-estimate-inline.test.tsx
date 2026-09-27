@@ -31,7 +31,7 @@ it('marks a steps-scaled estimate as rough and says why', () => {
 it('names the calibration render on a fresh machine, and stays quiet for remote renders', () => {
   const cold = { ...base, basis: 'none' as const, reason: 'cold_start' as const, seconds: null };
   const { rerender, container } = render(<RenderEstimateInline estimate={cold} />);
-  expect(screen.getByText(/after your first render on this machine/)).toBeVisible();
+  expect(screen.getByText(/after a few renders on this machine/)).toBeVisible();
   rerender(<RenderEstimateInline estimate={{ ...cold, reason: 'remote' }} />);
   expect(container).toBeEmptyDOMElement();
 });

@@ -2786,13 +2786,13 @@
   "renderEstimate": {
     "about": "About {{time}} to render",
     "roughly": "Roughly {{time}} to render",
-    "cold": "Estimate appears after your first render on this machine",
+    "cold": "Estimate appears after a few renders on this machine",
     "left": "About {{time}} left",
     "finishing": "Finishing up",
     "range": "Usually {{low}} to {{high}} on this machine",
     "rough_hint": "Scaled from renders at other quality settings. It becomes exact after a render at these settings.",
     "inline_about": "render about {{time}}",
     "inline_roughly": "render roughly {{time}}",
-    "inline_cold": "render time appears after your first render on this machine"
+    "inline_cold": "render time appears after a few renders on this machine"
   }
 }

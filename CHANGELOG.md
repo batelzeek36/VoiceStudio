@@ -13,7 +13,7 @@ metadata and the backend fallback mirror it. Archived Tauri manifests stay froze
 
 ### Changed
 
-- Render time is estimated from your own machine's renders: beside Synthesize, after the Stories and Audiobook runtime, and as a live countdown; the first render calibrates it
+- Render time is estimated from your own machine's renders: beside Synthesize, after the Stories and Audiobook runtime, and as a live countdown; your first few renders calibrate it
 
 ## [0.5.6] — 2026-09-23
 
