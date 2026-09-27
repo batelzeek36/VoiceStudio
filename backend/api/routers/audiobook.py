@@ -703,7 +703,7 @@ def _render_chapter_cached(chapter, synth, sr, engine_id, resolve, cache_dir, le
     import wave
 
     from services.audio_io import atomic_save_wav
-    from services.audiobook import ExpressiveOptions, Span, voice_map_signature
+    from services.audiobook import ExpressiveOptions, normalized_spans, voice_map_signature
     from services.longform_render import (
         SegmentCache,
         adopt_cached_file,
@@ -717,15 +717,11 @@ def _render_chapter_cached(chapter, synth, sr, engine_id, resolve, cache_dir, le
     )
     from core.config import VOICES_DIR
     from services.pronunciation import normalize_lexicon
-    from services.text_normalization import normalize_for_tts
     from services.watermark import mark_synthetic, will_mark
 
     opts = opts or ExpressiveOptions()
 
-    spans = [Span(voice_id=s.voice_id, text=normalize_for_tts(s.text, language),
-                  pause_ms_after=s.pause_ms_after, speed=getattr(s, "speed", None),
-                  join=getattr(s, "join", None))
-             for s in chapter.spans]
+    spans = normalized_spans(chapter.spans, language)
     # `join` enters the tuple only when set, so a plan without inline-markup
     # splits keeps its pre-existing chapter cache key.
     spans_tuples = [(s.voice_id, s.text, s.pause_ms_after, getattr(s, "speed", None))
@@ -1430,18 +1426,18 @@ class LongformRenderRequest(ExpressiveMixin):
     voice_map: dict[str, str] | None = None
 
 
-@router.post("/longform/render")
-async def longform_render(req: LongformRenderRequest, request: Request = None):
-    """Render a pre-built chapter/span plan (the Stories Editor's compiled
-    cast+lines) through the shared chapterized renderer — same resume, loudness,
-    cover, metadata, and output formats as the Audiobook job."""
+def plan_from_chapters(chapters: list[LongformChapter]):
+    """Compile a posted Stories plan into the renderer's :class:`AudiobookPlan`.
+
+    Shared by ``/longform/render`` and the render-time estimate, so both see
+    the same chapters and spans. 422 above :data:`_MAX_CHAPTERS`.
+    """
     from services.audiobook import AudiobookPlan, Chapter, Span
 
-    if len(req.chapters) > _MAX_CHAPTERS:
+    if len(chapters) > _MAX_CHAPTERS:
         raise HTTPException(status_code=422, detail=f"too many chapters (max {_MAX_CHAPTERS})")
-
-    chapters = []
-    for i, c in enumerate(req.chapters):
+    kept = []
+    for i, c in enumerate(chapters):
         # Keep a span if it has text to speak OR a pause to render (pause-only
         # spans carry inter-line silence with empty text).
         spans = [Span(voice_id=s.voice_id, text=(s.text or "").strip(),
@@ -1449,8 +1445,16 @@ async def longform_render(req: LongformRenderRequest, request: Request = None):
                       join=s.join)
                  for s in c.spans if ((s.text and s.text.strip()) or s.pause_ms_after > 0)]
         if spans:
-            chapters.append(Chapter(title=c.title or f"Chapter {i + 1}", spans=spans))
-    plan = AudiobookPlan(chapters=chapters)
+            kept.append(Chapter(title=c.title or f"Chapter {i + 1}", spans=spans))
+    return AudiobookPlan(chapters=kept)
+
+
+@router.post("/longform/render")
+async def longform_render(req: LongformRenderRequest, request: Request = None):
+    """Render a pre-built chapter/span plan (the Stories Editor's compiled
+    cast+lines) through the shared chapterized renderer — same resume, loudness,
+    cover, metadata, and output formats as the Audiobook job."""
+    plan = plan_from_chapters(req.chapters)
     return StreamingResponse(
         _public_longform_stream(
             plan, default_voice=req.default_voice, language=req.language,

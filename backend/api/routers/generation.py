@@ -1799,44 +1799,13 @@ async def generate_speech(
     if isinstance(language, str) and language.strip().lower() == "auto":
         language = None
 
-    # Engine-agnostic text normalization (junk strip, numbers→words,
-    # abbreviations) — AFTER `language` is fully resolved, and BEFORE the
-    # pronunciation dictionary so user dictionary entries operate on
-    # normalized text and respellings are never re-mangled (ordering rationale
-    # in services/text_normalization.py). Pref-gated (default ON), idempotent,
-    # never raises; applied exactly once per request, at this choke point.
-    from services.text_normalization import normalize_for_tts
-    text = normalize_for_tts(text, language)
-
-    # Expressive-TTS Spec 01: apply the user pronunciation dictionary + inline
-    # [[…]] one-off overrides to the text, here — AFTER `language` is fully
-    # resolved (a profile may fill it above) so per-language entries match the
-    # real render language, and BEFORE the text reaches either inference path
-    # (native VoiceStudio or a pluggable backend) and the chunk splitter. This is
-    # the single point user text → normalized text → model, so the transform
-    # covers generate for every engine. Pure text substitution → identical on
-    # mac/Win/Linux. A disabled pref or empty dictionary is a pass-through, so
-    # plain text stays byte-identical (#G5 backward-compat).
-    from core import prefs as _prefs
-    _pron_env = os.environ.get("OMNIVOICE_PRONUNCIATION")
-    if _pron_env is not None:
-        # Env wins (power-user override); "0"/"false"/"no"/"off" disable it.
-        _pron_enabled = _pron_env.strip().lower() not in ("0", "false", "no", "off", "")
-    else:
-        _pron_enabled = bool(_prefs.get("pronunciation_enabled", True))
-    if pronounce and _pron_enabled:
-        from services.pronunciation import apply_pronunciation, load_entries_from_db
-        try:
-            _pron_rows = load_entries_from_db()
-        except Exception:  # noqa: BLE001 — table missing / DB locked → no-op
-            _pron_rows = []
-        text = apply_pronunciation(text, _pron_rows, language)
-    else:
-        # Even with the dictionary off, inline [[…]] overrides are an explicit,
-        # in-text authoring choice → always honored (and never left as literal
-        # double-bracket text the model would mispronounce).
-        from services.pronunciation import apply_inline_overrides
-        text = apply_inline_overrides(text)
+    # Normalization, then the pronunciation dictionary: at this single choke
+    # point, after `language` is fully resolved and before either inference
+    # path and the chunk splitter (ordering rationale in
+    # services/synthesis_text.py). The render-time estimate prepares its text
+    # through the same function, so it plans the calls this render makes.
+    from services.synthesis_text import prepare_synthesis_text
+    text = prepare_synthesis_text(text, language, pronounce=pronounce)
 
     start_time = time.time()
 
