@@ -2782,5 +2782,17 @@
   "directoryExamples": {
     "example": "디렉터리 예시",
     "notice": "디렉터리 예시이며 스폰서나 연결된 연동이 아닙니다."
+  },
+  "renderEstimate": {
+    "about": "렌더링 약 {{time}}",
+    "roughly": "렌더링 대략 {{time}}",
+    "cold": "이 컴퓨터에서 처음 렌더링한 뒤 예상 시간이 표시됩니다",
+    "left": "약 {{time}} 남음",
+    "finishing": "마무리 중",
+    "range": "이 컴퓨터에서는 보통 {{low}}~{{high}}",
+    "rough_hint": "다른 품질 설정의 렌더링에서 환산한 값입니다. 이 설정으로 한 번 렌더링하면 정확해집니다.",
+    "inline_about": "렌더링 약 {{time}}",
+    "inline_roughly": "렌더링 대략 {{time}}",
+    "inline_cold": "렌더링 시간은 이 컴퓨터에서 처음 렌더링한 뒤 표시됩니다"
   }
 }

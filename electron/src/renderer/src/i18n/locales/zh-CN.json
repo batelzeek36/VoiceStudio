@@ -2786,5 +2786,17 @@
   "directoryExamples": {
     "example": "目录示例",
     "notice": "仅为目录示例，并非赞助商或已连接的集成。"
+  },
+  "renderEstimate": {
+    "about": "生成约需 {{time}}",
+    "roughly": "生成大约需 {{time}}",
+    "cold": "在这台电脑上首次生成后会显示预估时间",
+    "left": "剩余约 {{time}}",
+    "finishing": "即将完成",
+    "range": "在这台电脑上通常需 {{low}} 至 {{high}}",
+    "rough_hint": "根据其他质量设置下的生成换算得出。用这些设置生成一次后会更准确。",
+    "inline_about": "生成约 {{time}}",
+    "inline_roughly": "生成大约 {{time}}",
+    "inline_cold": "在这台电脑上首次生成后会显示生成时间"
   }
 }

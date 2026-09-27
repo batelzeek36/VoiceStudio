@@ -2784,5 +2784,17 @@
   "directoryExamples": {
     "example": "Esempio di catalogo",
     "notice": "Solo esempi di catalogo: non sponsor né integrazioni collegate."
+  },
+  "renderEstimate": {
+    "about": "Circa {{time}} di rendering",
+    "roughly": "Più o meno {{time}} di rendering",
+    "cold": "La stima appare dopo il primo rendering su questo computer",
+    "left": "Ancora circa {{time}}",
+    "finishing": "Completamento in corso",
+    "range": "Di solito da {{low}} a {{high}} su questo computer",
+    "rough_hint": "Calcolata da rendering con altre impostazioni di qualità. Diventa precisa dopo un rendering con queste impostazioni.",
+    "inline_about": "rendering di circa {{time}}",
+    "inline_roughly": "rendering di più o meno {{time}}",
+    "inline_cold": "la durata del rendering appare dopo il primo rendering su questo computer"
   }
 }

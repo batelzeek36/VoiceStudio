@@ -2784,5 +2784,17 @@
   "directoryExamples": {
     "example": "Exemple du répertoire",
     "notice": "Exemples uniquement : ni sponsors ni intégrations connectées."
+  },
+  "renderEstimate": {
+    "about": "Environ {{time}} de rendu",
+    "roughly": "À peu près {{time}} de rendu",
+    "cold": "L'estimation apparaît après votre premier rendu sur cet appareil",
+    "left": "Encore environ {{time}}",
+    "finishing": "Finalisation",
+    "range": "En général de {{low}} à {{high}} sur cet appareil",
+    "rough_hint": "Extrapolée à partir de rendus avec d'autres réglages de qualité. Elle devient exacte après un rendu avec ces réglages.",
+    "inline_about": "rendu d'environ {{time}}",
+    "inline_roughly": "rendu d'à peu près {{time}}",
+    "inline_cold": "la durée de rendu apparaît après votre premier rendu sur cet appareil"
   }
 }

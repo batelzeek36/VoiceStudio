@@ -2784,5 +2784,17 @@
   "directoryExamples": {
     "example": "Exemplo do diretório",
     "notice": "Apenas exemplos do diretório — não são patrocinadores nem integrações conectadas."
+  },
+  "renderEstimate": {
+    "about": "Cerca de {{time}} para renderizar",
+    "roughly": "Aproximadamente {{time}} para renderizar",
+    "cold": "A estimativa aparece após a primeira renderização neste computador",
+    "left": "Faltam cerca de {{time}}",
+    "finishing": "Finalizando",
+    "range": "Normalmente de {{low}} a {{high}} neste computador",
+    "rough_hint": "Calculada a partir de renderizações com outras configurações de qualidade. Fica exata após uma renderização com estas configurações.",
+    "inline_about": "renderização de cerca de {{time}}",
+    "inline_roughly": "renderização de aproximadamente {{time}}",
+    "inline_cold": "o tempo de renderização aparece após a primeira renderização neste computador"
   }
 }

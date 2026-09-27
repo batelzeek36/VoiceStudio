@@ -2782,5 +2782,17 @@
   "directoryExamples": {
     "example": "Ví dụ trong danh mục",
     "notice": "Chỉ là ví dụ trong danh mục, không phải nhà tài trợ hay tích hợp đã kết nối."
+  },
+  "renderEstimate": {
+    "about": "Kết xuất khoảng {{time}}",
+    "roughly": "Kết xuất ước chừng {{time}}",
+    "cold": "Ước tính sẽ xuất hiện sau lần kết xuất đầu tiên trên máy này",
+    "left": "Còn khoảng {{time}}",
+    "finishing": "Đang hoàn tất",
+    "range": "Thường từ {{low}} đến {{high}} trên máy này",
+    "rough_hint": "Quy đổi từ các lần kết xuất với cài đặt chất lượng khác. Sẽ chính xác sau một lần kết xuất với cài đặt này.",
+    "inline_about": "kết xuất khoảng {{time}}",
+    "inline_roughly": "kết xuất ước chừng {{time}}",
+    "inline_cold": "thời gian kết xuất sẽ xuất hiện sau lần kết xuất đầu tiên trên máy này"
   }
 }

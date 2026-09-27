@@ -14,6 +14,8 @@ import { consumeLongformStream } from '../../../../../../frontend/src/utils/long
 import { storyToSpans } from '../../../../../../frontend/src/utils/storyToSpans';
 import { beginAppActivity } from '@/lib/app-activity';
 import { publicFailureFromEvent, type PublicFailure } from '@/lib/api/failure';
+import { queryClient } from '@/lib/query';
+import { refreshRenderEstimates } from '@/hooks/use-render-estimate';
 export type Mode = 'stories' | 'audiobook';
 export interface Character {
   id: string;
@@ -66,6 +68,8 @@ interface Session {
   storageError: boolean;
   chapters: AudiobookRenderChapter[];
   stopped: boolean;
+  /** A resumed render follows its saved manifest, not the draft on screen. */
+  resumed: boolean;
 }
 export const blankLongformDraft = (): Draft => ({
   projectId: null,
@@ -153,6 +157,7 @@ export const longformSession = new Store<Session>({
   storageError: false,
   chapters: [],
   stopped: false,
+  resumed: false,
 });
 export const useLongformSession = () => useStore(longformSession);
 const patch = (value: Partial<Session>) => longformSession.setState((s) => ({ ...s, ...value }));
@@ -234,6 +239,7 @@ export async function renderLongform(mode: Mode, resumeId?: string) {
     failure: null,
     chapters: [],
     stopped: false,
+    resumed: Boolean(resumeId),
   });
   let done = false;
   let outputChapters: AudiobookRenderChapter[] = [];
@@ -346,6 +352,8 @@ export async function renderLongform(mode: Mode, resumeId?: string) {
       controller = null;
       patch({ active: null, stage: '' });
     }
+    // Rendered chapters recorded this machine's timings: re-ask the estimate.
+    void refreshRenderEstimates(queryClient).catch(() => {});
   }
 }
 

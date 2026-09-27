@@ -63,6 +63,9 @@ import {
 } from './longform-session';
 import { SAMPLE_AUDIOBOOK_SCRIPT } from '../../../../../../frontend/src/data/sampleAudiobook';
 import { useTtsReadiness } from '@/hooks/use-tts-readiness';
+import { useRenderEstimate } from '@/hooks/use-render-estimate';
+import { longformEstimateRequest } from './longform-estimate';
+import { RenderEstimateInline } from './render-estimate-inline';
 interface Recovery {
   job_id: string;
   type: string;
@@ -124,6 +127,11 @@ export function LongformPage({ mode }: { mode: Mode }) {
     [draft.script, draft.voiceCast, mode, profiles],
   );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const estimateRequest = useMemo(
+    () => (usable ? longformEstimateRequest(mode, draft) : null),
+    [usable, mode, draft],
+  );
+  const estimate = useRenderEstimate(estimateRequest);
   const blocker = generateBlocker({
     mode,
     busyElsewhere: Boolean(session.active) && session.active !== mode,
@@ -138,6 +146,7 @@ export function LongformPage({ mode }: { mode: Mode }) {
       mode={mode}
       session={session}
       blocker={blocker}
+      estimate={estimate}
       onGenerate={() => void renderLongform(mode)}
       onStop={stopLongform}
     />
@@ -452,6 +461,7 @@ export function LongformPage({ mode }: { mode: Mode }) {
                 words: stats.words,
                 runtime: formatRuntimeClock(stats.runtimeSec),
               })}
+              {usable && <RenderEstimateInline estimate={estimate} />}
             </p>
             {!warningsDismissed && warnings.length > 0 && !session.active && (
               <ValidationWarnings

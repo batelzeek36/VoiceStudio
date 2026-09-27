@@ -42,6 +42,7 @@ import {
 import { cn } from '@/lib/utils';
 import { EngineLanguagePicker } from './engine-language-picker';
 import { CloneDemoAction } from './clone-demo';
+import { RenderEstimateHint } from './render-estimate-hint';
 import { useCloneDemo } from '@/hooks/use-clone-demo';
 
 type NumericKey = 'steps' | 'cfg' | 'speed' | 'tShift' | 'posTemp' | 'classTemp' | 'layerPenalty';
@@ -383,7 +384,8 @@ export function ActionBar({
           </Popover>
         )}
 
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex min-w-0 items-center gap-4">
+          {demo ? null : <RenderEstimateHint />}
           <div className="relative flex w-64 shrink-0 flex-col gap-1">
             <div className="flex gap-2">
               {demo ? (

@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import type { RenderEstimate } from '@/lib/api/render-estimate';
 import { GenerationProgress } from './generation-progress';
 import type { GenerateBlocker } from './generate-blocker';
+import { plannedChapterSeconds } from './longform-estimate';
 import type { AudiobookRenderChapter } from './longform-session';
 
 /** The slice of the render session this panel reads. */
@@ -13,6 +16,7 @@ export interface GenerateSession {
   failed: number;
   stopped: boolean;
   chapters: AudiobookRenderChapter[];
+  resumed?: boolean;
 }
 
 /**
@@ -24,17 +28,24 @@ export function GeneratePanel({
   mode,
   session,
   blocker,
+  estimate = null,
   onGenerate,
   onStop,
 }: {
   mode: 'stories' | 'audiobook';
   session: GenerateSession;
   blocker: GenerateBlocker | null;
+  /** This draft's render-time estimate; frozen as the plan when a render starts. */
+  estimate?: RenderEstimate | null;
   onGenerate: () => void;
   onStop: () => void;
 }) {
   const { t } = useTranslation();
   const active = session.active === mode;
+  const [plan, setPlan] = useState<{ seconds: (number | null)[] | null } | null>(null);
+  if (active && plan === null)
+    setPlan({ seconds: session.resumed ? null : plannedChapterSeconds(estimate) });
+  if (!active && plan !== null) setPlan(null);
   const status = active
     ? session.stage === 'assembling'
       ? t('audiobook.assembling')
@@ -64,6 +75,7 @@ export function GeneratePanel({
           <GenerationProgress
             chapters={session.chapters}
             assembling={session.stage === 'assembling'}
+            planned={plan?.seconds ?? null}
           />
         </div>
       )}
