@@ -72,3 +72,13 @@ To support stable long-form speech generation with low VRAM consumption, the tex
 |---|---|---|---|
 | `audio_chunk_duration` | float | 15.0 | Target chunk duration (seconds) when splitting long text. |
 | `audio_chunk_threshold` | float | 30.0 | Estimated audio duration (seconds) above which chunking is activated. |
+
+## How long will it take?
+
+VoiceStudio estimates render time from renders on your own machine, never from a built-in figure: the same chapter can take minutes on a CUDA desktop and an hour on a CPU-only laptop, and `num_step` alone changes it several times over.
+
+- **What is measured.** Every finished synthesis call records the engine, the device it ran on (`cuda`, `rocm`, `mps`, `directml`, `cpu`, ...), the steps, the characters, the audio it produced, its speed and how long it took. Numbers only: no text, voice or file path. The newest 200 calls per engine, device and steps are kept in the local database and never sent anywhere, analytics and bug reports included.
+- **How the estimate is made.** It plans the calls the render will make with the render's own code: every `[voice:]` switch, `[pause]`, inline markup boundary and chunk is a separate call with its own fixed cost. Each call's audio length comes from OmniVoice's own duration estimate for the chosen voice, or from this machine's measured characters per second for other engines. Each call is then priced with a robust line fitted to this machine's calls, `wall = a + b * audio_seconds` (Theil-Sen slope, median intercept), and the spread of past calls around that line gives the range.
+- **Measured, rough or not yet.** *Measured*: at least three calls on this engine and device at these steps. *Rough*: measured at other steps and rescaled by the steps ratio (compute grows with unmasking steps; the per-call cost does not). *Not yet*: fewer than three calls on this engine and device, so the first render is the calibration and the app says so instead of guessing.
+- **Where it appears.** Beside Synthesize in Voice cloning, after the runtime estimate in Stories and Audiobook, and as a countdown while a render runs, re-fitted as chapters finish. A render sent to a remote worker gets no estimate from this machine. Model loading is not included.
+- **API.** `POST /render/estimate` takes what the render takes (`surface`: `generate` with the `/generate` fields, `audiobook` with the `/audiobook` body, `longform` with the `/longform/render` body) and returns `seconds`, `low`, `high`, `calls`, `samples`, `basis` (`measured`, `rough` or `none`), `reason` (`cold_start`, `remote` or `no_rate` when there is no number) and per-chapter `parts`. It loads no model and makes no network call.

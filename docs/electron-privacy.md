@@ -1,6 +1,6 @@
 # Electron privacy and retention
 
-Settings > Privacy exposes the existing invisible-watermark setting, analytics consent and generation-history retention.
+Settings > Privacy exposes the existing invisible-watermark setting, analytics consent and generation-history retention. Render timings behind the render-time estimate (engine, device, steps, characters, seconds; never text, voices or paths) stay in the local database and are excluded from analytics and bug reports.
 
 Watermark controls appear when the backend reports AudioSeal available and affect new audio through the existing marking path. No audio producer bypasses `mark_synthetic`. Analytics consent uses the existing backend opt-in endpoint and remains unchanged until the user explicitly switches it. After consent, the renderer records fixed screen labels and workflow action labels (clone, design, dubbing, transcription); the backend records lifecycle/error events. Privacy-safe manual pageviews use fixed app paths under `app.voicestudio.sh`, enabling aggregate Web Analytics without sending renderer URLs or dynamic route segments. Uncaught renderer errors also reach PostHog Error Tracking with their message replaced and credentials, home paths, extension frames, text, audio, filenames, and user-named content removed. Raw exception autocapture, DOM autocapture, automatic pageviews, and session recordings remain disabled. Unavailable features do not display inert toggles, and failed saves preserve confirmed state.
 

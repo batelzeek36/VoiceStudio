@@ -9,6 +9,7 @@ metadata and the backend fallback mirror it.
 ## [Unreleased]
 
 **Highlights**
+- Voice Clone, Stories and Audiobook say how long a render will take on your machine, then count down while it runs
 - Electron is now the only desktop and web UI; the retired Tauri shell and legacy entry points are removed (#2343)
 - Docker and browser deployments now use the same maintained interface as the Electron desktop app (#2341)
 - Manage Projects with confirmed individual and bulk deletion, retry failed items, and keep exported files and render audio (#2333)
@@ -35,6 +36,7 @@ metadata and the backend fallback mirror it.
 
 ### Changed
 
+- Render time is estimated from your own machine's renders: beside Synthesize, after the Stories and Audiobook runtime, and as a live countdown; the first render calibrates it
 - OmniVoice sidecars reuse installed speech recognition for short references without transcripts, matching in-process cloning (#2320)
 - Electron recovers from OS-denied default backend ports without changing explicitly configured ports (#2358) — thanks @rishi2288!
 - Home opens directly on project actions, and Integrations lists only connectors with completed in-app setup (#2351)
