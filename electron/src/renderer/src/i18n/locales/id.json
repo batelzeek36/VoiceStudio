@@ -3197,5 +3197,17 @@
     "addingVoice": "Menambahkan suara…",
     "engineDefault": "Default mesin",
     "preview": "Pratinjau suara"
+  },
+  "renderEstimate": {
+    "about": "Render sekitar {{time}}",
+    "roughly": "Render kira-kira {{time}}",
+    "cold": "Perkiraan muncul setelah render pertama Anda di komputer ini",
+    "left": "Sekitar {{time}} lagi",
+    "finishing": "Menyelesaikan",
+    "range": "Biasanya {{low}} hingga {{high}} di komputer ini",
+    "rough_hint": "Dihitung dari render dengan pengaturan kualitas lain. Menjadi tepat setelah satu render dengan pengaturan ini.",
+    "inline_about": "render sekitar {{time}}",
+    "inline_roughly": "render kira-kira {{time}}",
+    "inline_cold": "waktu render muncul setelah render pertama Anda di komputer ini"
   }
 }

@@ -3197,5 +3197,17 @@
     "addingVoice": "正在新增聲音…",
     "engineDefault": "引擎預設",
     "preview": "預覽語音"
+  },
+  "renderEstimate": {
+    "about": "產生約需 {{time}}",
+    "roughly": "產生大約需 {{time}}",
+    "cold": "在這台電腦上首次產生後會顯示預估時間",
+    "left": "剩餘約 {{time}}",
+    "finishing": "即將完成",
+    "range": "在這台電腦上通常需 {{low}} 至 {{high}}",
+    "rough_hint": "根據其他品質設定下的產生結果換算而來。用這些設定產生一次後會更準確。",
+    "inline_about": "產生約 {{time}}",
+    "inline_roughly": "產生大約 {{time}}",
+    "inline_cold": "在這台電腦上首次產生後會顯示產生時間"
   }
 }

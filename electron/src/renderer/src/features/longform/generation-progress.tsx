@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, CircleIcon, LoaderCircleIcon, XIcon, ZapIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { longformRemaining, renderedChapterEta } from '@/lib/render-estimate-time';
 import type { AudiobookRenderChapter } from './longform-session';
 
 function formatElapsed(seconds: number): string {
@@ -20,13 +21,17 @@ function ChapterStatusIcon({ status }: { status: string }) {
 export function GenerationProgress({
   chapters,
   assembling,
+  planned = null,
 }: {
   chapters: AudiobookRenderChapter[];
   assembling: boolean;
+  /** Estimated seconds per chapter on this machine (render-time estimate). */
+  planned?: (number | null)[] | null;
 }) {
   const { t } = useTranslation();
   const start = useRef(performance.now());
   const [now, setNow] = useState(start.current);
+  const [lastChapterAt, setLastChapterAt] = useState(start.current);
   const completed = useMemo(
     () =>
       chapters.filter((chapter) => ['done', 'cached', 'failed'].includes(chapter.status)).length,
@@ -35,13 +40,22 @@ export function GenerationProgress({
   const total = chapters.length;
   const percent = total ? Math.round((completed / total) * 100) : 0;
   const elapsed = (now - start.current) / 1000;
-  const eta =
-    completed > 0 && completed < total ? (elapsed / completed) * (total - completed) : null;
+  const statuses = chapters.map((chapter) => chapter.status);
+  const open = total - completed;
+  // The measured plan re-fitted as chapters finish; without one (first render
+  // on this machine, a resume) the pace of the chapters actually rendered.
+  const eta = assembling
+    ? null
+    : (longformRemaining(planned, statuses, elapsed, Math.max(0, (now - lastChapterAt) / 1000)) ??
+      renderedChapterEta(statuses, elapsed));
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(performance.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    setLastChapterAt(performance.now());
+  }, [completed]);
 
   return (
     <div
@@ -57,7 +71,13 @@ export function GenerationProgress({
         </span>
         <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
           {formatElapsed(elapsed)}
-          {eta == null ? '' : ` · ${t('audiobook.eta', { time: formatElapsed(eta) })}`}
+          {eta == null
+            ? ''
+            : eta >= 1
+              ? ` · ${t('audiobook.eta', { time: formatElapsed(eta) })}`
+              : open <= 1
+                ? ` · ${t('renderEstimate.finishing')}`
+                : ''}
         </span>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">

@@ -3197,5 +3197,17 @@
     "addingVoice": "Ses ekleniyor…",
     "engineDefault": "Motor varsayılanı",
     "preview": "Sesi önizle"
+  },
+  "renderEstimate": {
+    "about": "Oluşturma yaklaşık {{time}}",
+    "roughly": "Oluşturma kabaca {{time}}",
+    "cold": "Tahmin, bu bilgisayardaki ilk oluşturmanızdan sonra görünür",
+    "left": "Yaklaşık {{time}} kaldı",
+    "finishing": "Tamamlanıyor",
+    "range": "Bu bilgisayarda genellikle {{low}} ile {{high}} arası",
+    "rough_hint": "Başka kalite ayarlarıyla yapılan oluşturmalardan hesaplandı. Bu ayarlarla bir oluşturmadan sonra kesinleşir.",
+    "inline_about": "oluşturma yaklaşık {{time}}",
+    "inline_roughly": "oluşturma kabaca {{time}}",
+    "inline_cold": "oluşturma süresi, bu bilgisayardaki ilk oluşturmanızdan sonra görünür"
   }
 }

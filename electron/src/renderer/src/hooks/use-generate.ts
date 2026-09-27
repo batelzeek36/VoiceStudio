@@ -27,6 +27,7 @@ import { setLatestOutput } from '@/lib/store/output';
 import { referenceStore } from '@/lib/store/reference';
 import { beginAppActivity } from '@/lib/app-activity';
 import { useTtsReadiness } from './use-tts-readiness';
+import { refreshRenderEstimates } from './use-render-estimate';
 import { recordActionBreadcrumb } from '@/lib/report-breadcrumb';
 
 const TIMER_TICK_MS = 100;
@@ -290,6 +291,8 @@ function useGenerateController(): UseGenerateClone {
           queryClient.invalidateQueries({ queryKey: queryKeys.history }),
           queryClient.invalidateQueries({ queryKey: ['loaded-models'] }),
           queryClient.invalidateQueries({ queryKey: queryKeys.engines }),
+          // This take's timings sharpen the next estimate.
+          refreshRenderEstimates(queryClient),
         ]).catch(() => {});
       } catch (err) {
         if (!cancelledRef.current) {

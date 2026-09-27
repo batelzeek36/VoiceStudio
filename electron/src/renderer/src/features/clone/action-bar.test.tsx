@@ -69,6 +69,20 @@ vi.mock('@/lib/audio/playback', () => ({
   stopActivePlayback: vi.fn(),
 }));
 
+const estimate = vi.hoisted(() => ({
+  value: null as null | {
+    basis: 'measured' | 'rough' | 'none';
+    reason: null | 'cold_start';
+    seconds: number | null;
+    low: number | null;
+    high: number | null;
+    calls: number;
+    samples: number;
+    parts: { calls: number; seconds: number | null }[];
+  },
+}));
+vi.mock('@/hooks/use-render-estimate', () => ({ useRenderEstimate: () => estimate.value }));
+
 vi.mock('@/hooks/use-generate', () => ({
   useGenerateClone: () => ({
     generate,
@@ -83,6 +97,8 @@ describe('ActionBar', () => {
   beforeEach(() => {
     readiness.blocker = null;
     failure.error = null;
+    estimate.value = null;
+    settings.text = '';
     generate.mockClear();
   });
   beforeEach(() => {
@@ -156,6 +172,42 @@ describe('ActionBar', () => {
     expect(screen.getByRole('button', { name: 'Optimizing model…' })).toHaveClass('w-52');
     expect(screen.getByText('62% · 3.4s')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '62');
+  });
+  it('shows how long the take will render beside Synthesize, then counts down', () => {
+    settings.text = 'Read this aloud.';
+    estimate.value = {
+      basis: 'measured',
+      reason: null,
+      seconds: 276,
+      low: 250,
+      high: 320,
+      calls: 1,
+      samples: 6,
+      parts: [{ calls: 1, seconds: 276 }],
+    };
+    const view = render(<ActionBar />);
+    expect(screen.getByText('About 5 min to render')).toBeVisible();
+    Object.assign(runtime, { isGenerating: true, stage: 'generating' });
+    view.rerender(<ActionBar />);
+    expect(screen.getByText('About 5 min left')).toBeVisible();
+  });
+
+  it('says when the estimate will appear on a machine with no renders yet', () => {
+    settings.text = 'Read this aloud.';
+    estimate.value = {
+      basis: 'none',
+      reason: 'cold_start',
+      seconds: null,
+      low: null,
+      high: null,
+      calls: 1,
+      samples: 0,
+      parts: [{ calls: 1, seconds: null }],
+    };
+    render(<ActionBar />);
+    expect(
+      screen.getByText('Estimate appears after your first render on this machine'),
+    ).toBeVisible();
   });
 });
 

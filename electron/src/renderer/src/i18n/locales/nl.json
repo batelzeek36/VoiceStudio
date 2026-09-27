@@ -3197,5 +3197,17 @@
     "addingVoice": "Stem toevoegen…",
     "engineDefault": "Standaard motor",
     "preview": "Voorbeeldstem"
+  },
+  "renderEstimate": {
+    "about": "Ongeveer {{time}} renderen",
+    "roughly": "Grofweg {{time}} renderen",
+    "cold": "De schatting verschijnt na je eerste render op deze computer",
+    "left": "Nog ongeveer {{time}}",
+    "finishing": "Bijna klaar",
+    "range": "Meestal {{low}} tot {{high}} op deze computer",
+    "rough_hint": "Afgeleid van renders met andere kwaliteitsinstellingen. Na een render met deze instellingen wordt hij exact.",
+    "inline_about": "renderen ongeveer {{time}}",
+    "inline_roughly": "renderen grofweg {{time}}",
+    "inline_cold": "rendertijd verschijnt na je eerste render op deze computer"
   }
 }

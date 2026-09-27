@@ -3199,5 +3199,17 @@
     "addingVoice": "Añadiendo voz…",
     "engineDefault": "Valor predeterminado del motor",
     "preview": "Vista previa de voz"
+  },
+  "renderEstimate": {
+    "about": "Unos {{time}} de renderizado",
+    "roughly": "Aproximadamente {{time}} de renderizado",
+    "cold": "La estimación aparece tras tu primer renderizado en este equipo",
+    "left": "Quedan unos {{time}}",
+    "finishing": "Terminando",
+    "range": "Normalmente de {{low}} a {{high}} en este equipo",
+    "rough_hint": "Calculado a partir de renderizados con otros ajustes de calidad. Será exacto tras un renderizado con estos ajustes.",
+    "inline_about": "renderizado de unos {{time}}",
+    "inline_roughly": "renderizado de aproximadamente {{time}}",
+    "inline_cold": "el tiempo de renderizado aparece tras tu primer renderizado en este equipo"
   }
 }
