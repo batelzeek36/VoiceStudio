@@ -274,6 +274,7 @@ POST /projects
 POST /pronunciation
 POST /pronunciation/import
 POST /pronunciation/test
+POST /render/estimate
 POST /setup/warmup
 POST /stories/encode
 POST /system/crash/ack
