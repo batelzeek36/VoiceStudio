@@ -28,13 +28,17 @@ try {
     .locator('article')
     .filter({ has: page.getByRole('heading', { name, exact: true }) });
   await card.getByRole('button', { name: 'Trim', exact: true }).click();
-  await page.getByRole('spinbutton', { name: 'Start', exact: true }).waitFor({ timeout: 10000 });
+  await page.getByRole('button', { name: 'Use trimmed', exact: true }).waitFor({ timeout: 10000 });
   const region = page.locator('[part~="region"]');
   await region.waitFor();
   const bounds = await region.boundingBox();
   assert.ok(bounds && bounds.width > 50);
+  // Exact seconds, snapping and zoom sit under Fine-tune; fields commit on Enter.
+  await page.getByRole('button', { name: 'Fine-tune', exact: true }).click();
   await page.getByRole('spinbutton', { name: 'Start', exact: true }).fill('0.5');
+  await page.getByRole('spinbutton', { name: 'Start', exact: true }).press('Enter');
   await page.getByRole('spinbutton', { name: 'End', exact: true }).fill('1.5');
+  await page.getByRole('spinbutton', { name: 'End', exact: true }).press('Enter');
   await page.getByRole('button', { name: 'Zoom in (+)', exact: true }).click();
   await page.getByRole('button', { name: 'Fit all (Home)', exact: true }).click();
   await page.getByRole('button', { name: 'Play', exact: true }).click();
@@ -55,7 +59,7 @@ try {
   assert.ok(original.duration > clip.duration);
   await page.getByRole('heading', { name: name + ' - Trim', exact: true }).waitFor();
   console.log(
-    'Real trim selection, zoom, Vidstack preview and exact one-second saved WAV passed. Screenshot: ' +
+    'Real trim selection, zoom, on-waveform playback and exact one-second saved WAV passed. Screenshot: ' +
       join(folder, 'trim.png'),
   );
 } finally {

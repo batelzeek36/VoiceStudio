@@ -248,15 +248,3 @@ export function defaultWindow(
     ? snapRange(envelope, range, 'both', { maxSeconds, minSeconds })
     : clampRange(range, envelope.duration, maxSeconds, minSeconds);
 }
-
-/** "0:04.2": minutes, then seconds to a tenth, zero-padded. */
-export function formatTrimClock(seconds: number): string {
-  const safe = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
-  let minutes = Math.floor(safe / 60);
-  let rest = (safe - minutes * 60).toFixed(1);
-  if (rest === '60.0') {
-    minutes += 1;
-    rest = '0.0';
-  }
-  return `${minutes}:${rest.padStart(4, '0')}`;
-}

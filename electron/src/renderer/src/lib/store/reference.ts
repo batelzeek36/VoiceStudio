@@ -6,11 +6,20 @@ import { probeAudioDuration } from '@/lib/audio/probe';
 import { createObjectUrl, revokeObjectUrl } from '@/lib/audio/object-url';
 import { patchCloneSettings } from './clone-settings';
 
+/** Where a trimmed reference was cut from, so Trim can reopen the whole recording on that cut. */
+export interface ReferenceOrigin {
+  source: File | string;
+  name: string;
+  start: number;
+  end: number;
+}
+
 export interface ReferenceState {
   pending?: boolean;
   file: File | null;
   durationSeconds: number | null;
   objectUrl: string | null;
+  origin: ReferenceOrigin | null;
 }
 
 export interface SetReferenceResult {
@@ -21,7 +30,7 @@ export interface SetReferenceResult {
   tooLong: boolean;
 }
 
-const EMPTY: ReferenceState = { file: null, durationSeconds: null, objectUrl: null };
+const EMPTY: ReferenceState = { file: null, durationSeconds: null, objectUrl: null, origin: null };
 
 export const recordingBusyStore = new Store(false);
 export function setRecordingBusy(busy: boolean) {
@@ -72,6 +81,7 @@ export function selectCloneProfile(
 export async function setReferenceFile(
   file: File | null,
   knownDurationSeconds?: number | null,
+  origin: ReferenceOrigin | null = null,
 ): Promise<SetReferenceResult> {
   const pick = ++latestPick;
   if (!file) {
@@ -103,7 +113,7 @@ export async function setReferenceFile(
       refText: '',
       instruct: '',
     });
-    replaceState({ file, durationSeconds, objectUrl: createObjectUrl(file) });
+    replaceState({ file, durationSeconds, objectUrl: createObjectUrl(file), origin });
   }
   return { ok: true, durationSeconds, tooLong };
 }

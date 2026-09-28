@@ -33,8 +33,9 @@ import { setCloneSetting, useCloneSetting } from '@/lib/store/clone-settings';
 import { selectCloneProfile, setReferenceFile, useReference } from '@/lib/store/reference';
 import { setWorkspace } from '@/lib/store/workspace';
 import { cn } from '@/lib/utils';
+import { REF_TEXT_MAX_SECONDS } from '@/lib/api/generate';
 import { RecordZone, ReferenceUsageNote, UploadZone } from './reference-input';
-import { ReferenceTrimDialog, type ReferenceTrimSource } from './reference-trim';
+import { ReferenceTrimDialog, reopenSession, type ReferenceTrimSession } from './reference-trim';
 
 interface SaveProfileFormProps {
   metadata?: { refText: string; instruct: string; language: string; seed: number | null };
@@ -314,10 +315,16 @@ export function ReferencePanel({
   const [mode, setMode] = useState<'upload' | 'record'>('upload');
   const [saving, setSaving] = useState(false);
   // The clip in the trimmer: an over-long pick (opened automatically) or the
-  // accepted reference (opened from its Trim button). Only what the trimmer
-  // confirms ever becomes the reference.
-  const [trimming, setTrimming] = useState<ReferenceTrimSource | null>(null);
-  const requestTrim = (clip: File) => setTrimming({ source: clip, name: clip.name });
+  // accepted reference (opened from its Trim button, on the whole original
+  // recording with the last cut preselected). Only what the trimmer confirms
+  // ever becomes the reference.
+  const [trimming, setTrimming] = useState<ReferenceTrimSession | null>(null);
+  const requestTrim = (clip: File) =>
+    setTrimming({ source: clip, name: clip.name, initialRange: null, required: true });
+  const cancelTrim = () => {
+    if (trimming?.required) toast(t('referenceTrim.not_kept', { max: REF_TEXT_MAX_SECONDS }));
+    setTrimming(null);
+  };
 
   const profile =
     !setup && selectedProfileId
@@ -371,7 +378,11 @@ export function ReferencePanel({
                   {t('clone.duration_seconds', { seconds: reference.durationSeconds.toFixed(1) })}
                 </span>
               ) : null}
-              <Button variant="ghost" size="xs" onClick={() => requestTrim(file)}>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setTrimming(reopenSession(file, reference.origin))}
+              >
                 <ScissorsIcon data-icon="inline-start" />
                 {t('referenceTrim.trim')}
               </Button>
@@ -446,11 +457,17 @@ export function ReferencePanel({
           <ReferenceTrimDialog
             source={trimming.source}
             name={trimming.name}
-            onTrimmed={(trimmed, seconds) => {
+            initialRange={trimming.initialRange}
+            onTrimmed={(trimmed, seconds, range) => {
               setTrimming(null);
-              void setReferenceFile(trimmed, seconds);
+              void setReferenceFile(trimmed, seconds, {
+                source: trimming.source,
+                name: trimming.name,
+                start: range.start,
+                end: range.end,
+              });
             }}
-            onCancel={() => setTrimming(null)}
+            onCancel={cancelTrim}
           />
         ) : null}
       </CardContent>

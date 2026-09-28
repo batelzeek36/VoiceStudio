@@ -6,6 +6,7 @@ import { PersonaExport } from './persona-export';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   Clock3Icon,
   FileAudioIcon,
@@ -32,11 +33,14 @@ import { cloneSettingsStore, patchCloneSettings } from '@/lib/store/clone-settin
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { createObjectUrl, revokeObjectUrl } from '@/lib/audio/object-url';
 import { cn } from '@/lib/utils';
+import { REF_TEXT_MAX_SECONDS } from '@/lib/api/generate';
+import type { ReferenceOrigin } from '@/lib/store/reference';
 import { RecordZone, ReferenceUsageNote, UploadZone } from './reference-input';
 import {
   ReferenceTrimDialog,
   profileReferencePath,
-  type ReferenceTrimSource,
+  reopenSession,
+  type ReferenceTrimSession,
 } from './reference-trim';
 import { ProfileImageEditor } from './profile-image-editor';
 import { formatRelative } from './format';
@@ -64,6 +68,8 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
   const [replacement, setReplacement] = useState<{
     file: File;
     durationSeconds: number | null;
+    /** Set when the clip is a cut, so Trim reopens the whole recording on it. */
+    origin: ReferenceOrigin | null;
   } | null>(null);
   const [replacementUrl, setReplacementUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -83,20 +89,35 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
     refTextBeforeReplace.current = draft.ref_text;
     setChoosing(true);
   };
-  const acceptReplacement = (file: File, durationSeconds: number | null) => {
-    setReplacement({ file, durationSeconds });
+  const acceptReplacement = (
+    file: File,
+    durationSeconds: number | null,
+    origin: ReferenceOrigin | null = null,
+  ) => {
+    setReplacement({ file, durationSeconds, origin });
     setChoosing(false);
     // The saved transcript describes the old clip. Leave it blank so the
     // backend transcribes the new one locally unless the user types it.
     setDraft((previous) => ({ ...previous, ref_text: '' }));
   };
-  // The clip in the trimmer: an over-long pick, the accepted replacement, or
-  // the stored reference itself. What it confirms becomes the replacement.
-  const [trimming, setTrimming] = useState<ReferenceTrimSource | null>(null);
-  const requestTrim = (clip: File) => setTrimming({ source: clip, name: clip.name });
+  // The clip in the trimmer: an over-long pick, the accepted replacement (on
+  // its whole original recording), or the stored reference itself. What it
+  // confirms becomes the replacement.
+  const [trimming, setTrimming] = useState<ReferenceTrimSession | null>(null);
+  const requestTrim = (clip: File) =>
+    setTrimming({ source: clip, name: clip.name, initialRange: null, required: true });
   const trimStoredReference = () => {
     refTextBeforeReplace.current = draft.ref_text;
-    setTrimming({ source: profileReferencePath(profile), name: profile.name });
+    setTrimming({
+      source: profileReferencePath(profile),
+      name: profile.name,
+      initialRange: null,
+      required: false,
+    });
+  };
+  const cancelTrim = () => {
+    if (trimming?.required) toast(t('referenceTrim.not_kept', { max: REF_TEXT_MAX_SECONDS }));
+    setTrimming(null);
   };
   const keepCurrentReference = () => {
     setReplacement(null);
@@ -235,7 +256,7 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
                   variant="ghost"
                   size="xs"
                   disabled={unavailable}
-                  onClick={() => requestTrim(replacement.file)}
+                  onClick={() => setTrimming(reopenSession(replacement.file, replacement.origin))}
                 >
                   <ScissorsIcon data-icon="inline-start" />
                   {t('referenceTrim.trim')}
@@ -305,11 +326,17 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
             <ReferenceTrimDialog
               source={trimming.source}
               name={trimming.name}
-              onTrimmed={(trimmed, seconds) => {
+              initialRange={trimming.initialRange}
+              onTrimmed={(trimmed, seconds, range) => {
                 setTrimming(null);
-                acceptReplacement(trimmed, seconds);
+                acceptReplacement(trimmed, seconds, {
+                  source: trimming.source,
+                  name: trimming.name,
+                  start: range.start,
+                  end: range.end,
+                });
               }}
-              onCancel={() => setTrimming(null)}
+              onCancel={cancelTrim}
             />
           ) : null}
         </section>

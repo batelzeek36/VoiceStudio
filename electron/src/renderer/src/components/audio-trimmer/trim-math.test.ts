@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   clampRange,
   defaultWindow,
-  formatTrimClock,
   presetRange,
   quietestNear,
   rmsEnvelope,
@@ -171,15 +170,5 @@ describe('defaultWindow', () => {
   it('takes the whole clip when it is shorter than the window', () => {
     const envelope = rmsEnvelope(signal(8, []), 1000);
     expect(defaultWindow(envelope, 15, { maxSeconds: 20 })).toEqual({ start: 0, end: 8 });
-  });
-});
-
-describe('formatTrimClock', () => {
-  it('shows minutes and tenths of a second', () => {
-    expect(formatTrimClock(4.23)).toBe('0:04.2');
-    expect(formatTrimClock(16.85)).toBe('0:16.9');
-    expect(formatTrimClock(65)).toBe('1:05.0');
-    expect(formatTrimClock(59.97)).toBe('1:00.0');
-    expect(formatTrimClock(NaN)).toBe('0:00.0');
   });
 });

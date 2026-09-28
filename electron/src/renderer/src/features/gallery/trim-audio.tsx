@@ -53,9 +53,9 @@ export function TrimAudio({
           name={name}
           maxSeconds={MAX_TRIM_SECONDS}
           defaultLength={MAX_TRIM_SECONDS}
+          zoom
           busy={busy}
           saveError={saveError}
-          playerSource="gallery-trim"
           onSave={(file) => onSave(new File([file], name + '.wav', { type: 'audio/wav' }))}
           onCancel={onCancel}
         />

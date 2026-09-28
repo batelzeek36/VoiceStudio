@@ -14,7 +14,7 @@ metadata and the backend fallback mirror it. Archived Tauri manifests stay froze
 
 ### Added
 
-- Reference trimmer in Voice Clone: a clip over 20 s opens the trimmer automatically and a shorter clip offers Trim; length presets (10/15/20 s, keys 1/2/3) keep the start and set the length, cuts snap into pauses (toggle), the selection loops in a preview, and only the trimmed WAV becomes the reference and is transcribed. The same trimmer also cuts a saved voice's stored reference or its replacement in Edit voice.
+- Reference trimmer in Voice Clone: a clip over 20 s opens the trimmer automatically and a shorter clip offers Trim; length presets (10/15/20 s, keys 1/2/3) keep the start and set the length, the selection plays and loops on the waveform itself, cuts snap into pauses, Trim reopens the whole recording on the last cut, and only the trimmed WAV becomes the reference and is transcribed. The same trimmer also cuts a saved voice's stored reference or its replacement in Edit voice.
 
 ### Changed
 

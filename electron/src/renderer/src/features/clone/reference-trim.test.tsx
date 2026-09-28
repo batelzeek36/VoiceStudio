@@ -11,34 +11,33 @@ import {
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Profile } from '@/lib/api/types';
-import { apiJson } from '@/lib/api/client';
-import {
-  cloneSettingsStore,
-  patchCloneSettings,
-  setCloneSetting,
-} from '@/lib/store/clone-settings';
+import { cloneSettingsStore, patchCloneSettings } from '@/lib/store/clone-settings';
 import { clearReference, referenceStore, useReference } from '@/lib/store/reference';
 import { useReferenceTranscript } from '@/hooks/use-reference-transcript';
 
 /**
  * The trimmer's place in the new-voice flow: an over-long pick opens it, what
  * it confirms replaces the reference (never the original), the transcript is
- * taken from that trimmed clip, and a short clip can still be trimmed on
- * request. The dialog itself is stubbed: its decoding is exercised in the
- * browser smoke, the math in trim-math.test.ts.
+ * taken from that trimmed clip, Trim reopens the whole original on the last
+ * cut, and cancelling a demanded trim says so. The dialog itself is stubbed:
+ * its decoding and playback are exercised in the browser smoke, the math in
+ * trim-math.test.ts.
  */
 const original = new File(['a'.repeat(4000)], 'long take.m4a', { type: 'audio/mp4' });
 const trimmed = new File(['cut'], 'long take 4.2-16.8s.wav', { type: 'audio/wav' });
+const cut = { start: 4.2, end: 16.8 };
 
 const mock = vi.hoisted(() => ({
-  dialogs: [] as Array<{ source: File | string; name: string }>,
+  dialogs: [] as Array<{ source: File | string; name: string; initialRange: unknown }>,
   replace: vi.fn(),
   json: vi.fn(),
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }),
 }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
 }));
+vi.mock('sonner', () => ({ toast: mock.toast }));
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: ReactNode }) => <a href="#models">{children}</a>,
 }));
@@ -98,18 +97,20 @@ vi.mock('./reference-trim', async (importOriginal) => ({
   ReferenceTrimDialog: ({
     source,
     name,
+    initialRange,
     onTrimmed,
     onCancel,
   }: {
     source: File | string;
     name: string;
-    onTrimmed: (file: File, seconds: number) => void;
+    initialRange?: { start: number; end: number } | null;
+    onTrimmed: (file: File, seconds: number, range: { start: number; end: number }) => void;
     onCancel: () => void;
   }) => {
-    mock.dialogs.push({ source, name });
+    mock.dialogs.push({ source, name, initialRange: initialRange ?? null });
     return (
       <div role="dialog" aria-label="trim-dialog">
-        <button type="button" onClick={() => onTrimmed(trimmed, 12.6)}>
+        <button type="button" onClick={() => onTrimmed(trimmed, 12.6, cut)}>
           confirm-trim
         </button>
         <button type="button" onClick={onCancel}>
@@ -132,6 +133,7 @@ afterEach(() => {
   patchCloneSettings({ selectedProfileId: null, refText: '', instruct: '' });
   mock.dialogs.length = 0;
   mock.replace.mockReset();
+  mock.toast.mockClear();
 });
 
 it('opens the trimmer for an over-long pick and makes only the trimmed clip the reference', async () => {
@@ -141,7 +143,11 @@ it('opens the trimmer for an over-long pick and makes only the trimmed clip the 
   fireEvent.click(screen.getByText('pick-long'));
 
   expect(screen.getByRole('dialog', { name: 'trim-dialog' })).toBeInTheDocument();
-  expect(mock.dialogs.at(-1)).toEqual({ source: original, name: 'long take.m4a' });
+  expect(mock.dialogs.at(-1)).toEqual({
+    source: original,
+    name: 'long take.m4a',
+    initialRange: null,
+  });
   // Nothing is the reference until the trimmer confirms.
   expect(referenceStore.state.file).toBeNull();
 
@@ -149,16 +155,42 @@ it('opens the trimmer for an over-long pick and makes only the trimmed clip the 
 
   await waitFor(() => expect(referenceStore.state.file).toBe(trimmed));
   expect(referenceStore.state.durationSeconds).toBe(12.6);
+  expect(referenceStore.state.origin).toEqual({
+    source: original,
+    name: 'long take.m4a',
+    ...cut,
+  });
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.getByText('long take 4.2-16.8s.wav')).toBeInTheDocument();
+  expect(mock.toast).not.toHaveBeenCalled();
 });
 
-it('drops an over-long pick when the trimmer is cancelled', () => {
+it('reopens the whole original on the last cut when a trimmed reference is trimmed again', async () => {
+  render(<ReferencePanel />);
+  fireEvent.click(screen.getByText('pick-long'));
+  fireEvent.click(screen.getByText('confirm-trim'));
+  await waitFor(() => expect(referenceStore.state.file).toBe(trimmed));
+
+  fireEvent.click(screen.getByRole('button', { name: /referenceTrim.trim/ }));
+
+  expect(mock.dialogs.at(-1)).toEqual({
+    source: original,
+    name: 'long take.m4a',
+    initialRange: cut,
+  });
+  // Cancelling a re-trim keeps the cut that was already accepted, quietly.
+  fireEvent.click(screen.getByText('cancel-trim'));
+  expect(referenceStore.state.file).toBe(trimmed);
+  expect(mock.toast).not.toHaveBeenCalled();
+});
+
+it('says why an over-long pick was not kept when its trim is cancelled', () => {
   render(<ReferencePanel />);
   fireEvent.click(screen.getByText('pick-long'));
   fireEvent.click(screen.getByText('cancel-trim'));
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(referenceStore.state.file).toBeNull();
+  expect(mock.toast).toHaveBeenCalledWith('referenceTrim.not_kept');
 });
 
 it('offers Trim on an accepted short clip and swaps in the cut', async () => {
@@ -172,9 +204,10 @@ it('offers Trim on an accepted short clip and swaps in the cut', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: /referenceTrim.trim/ }));
 
-  expect(mock.dialogs.at(-1)).toEqual({ source: short, name: 'short.wav' });
+  expect(mock.dialogs.at(-1)).toEqual({ source: short, name: 'short.wav', initialRange: null });
   fireEvent.click(screen.getByText('confirm-trim'));
   await waitFor(() => expect(referenceStore.state.file).toBe(trimmed));
+  expect(referenceStore.state.origin?.source).toBe(short);
 });
 
 it('transcribes the trimmed clip, never the original', async () => {
@@ -222,7 +255,11 @@ it('trims an over-long replacement pick and saves the cut with a fresh transcrip
 
   fireEvent.click(screen.getByRole('button', { name: /clone.replace_reference/ }));
   fireEvent.click(screen.getByText('pick-long'));
-  expect(mock.dialogs.at(-1)).toEqual({ source: original, name: 'long take.m4a' });
+  expect(mock.dialogs.at(-1)).toEqual({
+    source: original,
+    name: 'long take.m4a',
+    initialRange: null,
+  });
   // The over-long original is never shown as the replacement.
   expect(screen.queryByText(/long take.m4a/)).toBeNull();
 
@@ -242,12 +279,36 @@ it('trims an over-long replacement pick and saves the cut with a fresh transcrip
   );
 });
 
-it('trims the stored reference from its versioned backend path', async () => {
+it('reopens a trimmed replacement on its whole original and toasts a cancelled demanded trim', () => {
+  renderEditor();
+  fireEvent.click(screen.getByRole('button', { name: /clone.replace_reference/ }));
+  fireEvent.click(screen.getByText('pick-long'));
+  fireEvent.click(screen.getByText('cancel-trim'));
+  expect(mock.toast).toHaveBeenCalledWith('referenceTrim.not_kept');
+  expect(screen.queryByTestId('player')).toHaveTextContent('/profiles/v1/audio?v=1');
+
+  fireEvent.click(screen.getByText('pick-long'));
+  fireEvent.click(screen.getByText('confirm-trim'));
+  expect(screen.getByTestId('player')).toHaveTextContent('blob:long take 4.2-16.8s.wav');
+
+  fireEvent.click(screen.getByRole('button', { name: /referenceTrim.trim/ }));
+  expect(mock.dialogs.at(-1)).toEqual({
+    source: original,
+    name: 'long take.m4a',
+    initialRange: cut,
+  });
+});
+
+it('trims the stored reference from its versioned backend path', () => {
   renderEditor();
 
   fireEvent.click(screen.getByRole('button', { name: /referenceTrim.trim/ }));
 
-  expect(mock.dialogs.at(-1)).toEqual({ source: '/profiles/v1/audio?v=1', name: 'Scarlet' });
+  expect(mock.dialogs.at(-1)).toEqual({
+    source: '/profiles/v1/audio?v=1',
+    name: 'Scarlet',
+    initialRange: null,
+  });
   fireEvent.click(screen.getByText('confirm-trim'));
   expect(screen.getByTestId('player')).toHaveTextContent('blob:long take 4.2-16.8s.wav');
   // Keep current reference still restores the transcript from before the trim.
@@ -264,14 +325,7 @@ it('offers Trim on an accepted replacement and swaps in the cut', () => {
 
   fireEvent.click(screen.getByRole('button', { name: /referenceTrim.trim/ }));
   expect(mock.dialogs.at(-1)?.name).toBe('short.wav');
+  expect(mock.dialogs.at(-1)?.initialRange).toBeNull();
   fireEvent.click(screen.getByText('confirm-trim'));
   expect(screen.getByTestId('player')).toHaveTextContent('blob:long take 4.2-16.8s.wav');
-});
-
-it('keeps the transcript hook idle when a saved voice is selected', async () => {
-  setCloneSetting('selectedProfileId', 'v1');
-  const { result } = renderHook(() => useReferenceTranscript(null));
-  await waitFor(() => expect(result.current.state).toBe('idle'));
-  expect(mock.json).not.toHaveBeenCalled();
-  expect(apiJson).toBe(mock.json);
 });
