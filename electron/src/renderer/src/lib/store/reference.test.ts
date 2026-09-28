@@ -79,8 +79,27 @@ describe('setReferenceFile', () => {
     const url = referenceStore.state.objectUrl;
     const result = await setReferenceFile(null);
     expect(result).toEqual({ ok: true, durationSeconds: null, tooLong: false });
-    expect(referenceStore.state).toEqual({ file: null, durationSeconds: null, objectUrl: null });
+    expect(referenceStore.state).toEqual({
+      file: null,
+      durationSeconds: null,
+      objectUrl: null,
+      origin: null,
+    });
     expect(revokeObjectURL).toHaveBeenCalledWith(url);
+  });
+
+  it('takes a measured length and the cut it came from without probing again', async () => {
+    const original = file('take.m4a');
+    const origin = { source: original, name: 'take.m4a', start: 4.2, end: 16.8 };
+    const result = await setReferenceFile(file('take 4.2-16.8s.wav'), 12.6, origin);
+    expect(result).toEqual({ ok: true, durationSeconds: 12.6, tooLong: false });
+    expect(probeAudioDuration).not.toHaveBeenCalled();
+    expect(referenceStore.state.durationSeconds).toBe(12.6);
+    expect(referenceStore.state.origin).toEqual(origin);
+    // A plain pick has no origin; clearing drops it either way.
+    probeAudioDuration.mockResolvedValue(3);
+    await setReferenceFile(file('plain.wav'));
+    expect(referenceStore.state.origin).toBeNull();
   });
 
   it('revokes the old URL when replacing a clip', async () => {

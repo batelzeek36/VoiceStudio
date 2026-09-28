@@ -14,6 +14,12 @@ export const CLONE_MAX_SECONDS = 15;
  */
 export const REF_HARD_MAX_SECONDS = 75;
 /**
+ * Longest reference the UI lets in. A transcript is aligned against the whole
+ * clip, so OmniVoice refuses transcribed clips past CLONE_REF_TEXT_MAX_SECONDS
+ * (omnivoice/utils/audio.py); longer picks go through the reference trimmer.
+ */
+export const REF_TEXT_MAX_SECONDS = 20;
+/**
  * Client-side abort backstop. The first /generate may cold-load the model;
  * the backend bounds that itself and returns a descriptive error, so this sits
  * just above its load timeout to make sure the UI never spins forever if the

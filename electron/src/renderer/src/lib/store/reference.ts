@@ -6,11 +6,20 @@ import { probeAudioDuration } from '@/lib/audio/probe';
 import { createObjectUrl, revokeObjectUrl } from '@/lib/audio/object-url';
 import { patchCloneSettings } from './clone-settings';
 
+/** Where a trimmed reference was cut from, so Trim can reopen the whole recording on that cut. */
+export interface ReferenceOrigin {
+  source: File | string;
+  name: string;
+  start: number;
+  end: number;
+}
+
 export interface ReferenceState {
   pending?: boolean;
   file: File | null;
   durationSeconds: number | null;
   objectUrl: string | null;
+  origin: ReferenceOrigin | null;
 }
 
 export interface SetReferenceResult {
@@ -21,7 +30,7 @@ export interface SetReferenceResult {
   tooLong: boolean;
 }
 
-const EMPTY: ReferenceState = { file: null, durationSeconds: null, objectUrl: null };
+const EMPTY: ReferenceState = { file: null, durationSeconds: null, objectUrl: null, origin: null };
 
 export const recordingBusyStore = new Store(false);
 export function setRecordingBusy(busy: boolean) {
@@ -61,24 +70,34 @@ export function selectCloneProfile(
 }
 
 /**
- * Set (or clear) the reference clip. Probes the duration first: clips over
- * REF_HARD_MAX_SECONDS are rejected outright (automatic passage selection
- * stops there); clips over CLONE_MAX_SECONDS are accepted with `tooLong`, and
- * the engine keeps as much of them as it can use (#2281). Picking a file
- * deselects any saved voice — exactly one of the two feeds `/generate`.
+ * Set (or clear) the reference clip. Probes the duration first unless the
+ * caller already measured it (`knownDurationSeconds`, e.g. the trimmer's
+ * exact cut): clips over REF_HARD_MAX_SECONDS are rejected outright
+ * (automatic passage selection stops there); clips over CLONE_MAX_SECONDS are
+ * accepted with `tooLong`, and the engine keeps as much of them as it can use
+ * (#2281). Picking a file deselects any saved voice — exactly one of the two
+ * feeds `/generate`.
  */
-export async function setReferenceFile(file: File | null): Promise<SetReferenceResult> {
+export async function setReferenceFile(
+  file: File | null,
+  knownDurationSeconds?: number | null,
+  origin: ReferenceOrigin | null = null,
+): Promise<SetReferenceResult> {
   const pick = ++latestPick;
   if (!file) {
     replaceState(EMPTY);
     return { ok: true, durationSeconds: null, tooLong: false };
   }
-  referenceStore.setState((state) => ({ ...state, pending: true }));
   let durationSeconds: number | null;
-  try {
-    durationSeconds = await probeAudioDuration(file);
-  } finally {
-    if (pick === latestPick) referenceStore.setState(({ pending: _pending, ...state }) => state);
+  if (knownDurationSeconds !== undefined) {
+    durationSeconds = knownDurationSeconds;
+  } else {
+    referenceStore.setState((state) => ({ ...state, pending: true }));
+    try {
+      durationSeconds = await probeAudioDuration(file);
+    } finally {
+      if (pick === latestPick) referenceStore.setState(({ pending: _pending, ...state }) => state);
+    }
   }
   const superseded = pick !== latestPick;
   if (durationSeconds !== null && durationSeconds > REF_HARD_MAX_SECONDS) {
@@ -94,7 +113,7 @@ export async function setReferenceFile(file: File | null): Promise<SetReferenceR
       refText: '',
       instruct: '',
     });
-    replaceState({ file, durationSeconds, objectUrl: createObjectUrl(file) });
+    replaceState({ file, durationSeconds, objectUrl: createObjectUrl(file), origin });
   }
   return { ok: true, durationSeconds, tooLong };
 }

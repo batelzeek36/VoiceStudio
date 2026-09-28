@@ -654,5 +654,21 @@ html[data-theme-id='heritage'] {
   outline-offset: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-slot='switch'].app-switch { transition: none; }
+  [data-slot='switch'].app-switch {
+    transition: none;
+  }
+}
+
+/* Audio trimmer: the wavesurfer region lives in a shadow root, so its handles
+   are themed through ::part. The plugin sets inline borders; override them. */
+[data-slot='audio-trimmer-wave'] ::part(region) {
+  border-radius: 4px;
+}
+[data-slot='audio-trimmer-wave'] ::part(region-handle-left) {
+  border-left: 2px solid var(--primary) !important;
+  border-radius: 4px 0 0 4px !important;
+}
+[data-slot='audio-trimmer-wave'] ::part(region-handle-right) {
+  border-right: 2px solid var(--primary) !important;
+  border-radius: 0 4px 4px 0 !important;
 }

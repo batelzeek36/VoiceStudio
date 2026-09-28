@@ -5,11 +5,12 @@ import { toast } from 'sonner';
 import { RecordingInputs } from '@/components/recording-inputs';
 import { useRecording } from '@/hooks/use-recording';
 import { useEngines } from '@/hooks/use-engines';
-import { CLONE_MAX_SECONDS, REF_HARD_MAX_SECONDS } from '@/lib/api/generate';
+import { REF_HARD_MAX_SECONDS, REF_TEXT_MAX_SECONDS } from '@/lib/api/generate';
 import { probeAudioDuration } from '@/lib/audio/probe';
 import { referenceUsageNote } from '@/lib/reference-usage';
-import { setReferenceFile, type SetReferenceResult } from '@/lib/store/reference';
+import { setReferenceFile } from '@/lib/store/reference';
 import { cn } from '@/lib/utils';
+import { decodeToMonoLowRate } from '../../../../../../frontend/src/utils/audioTrim';
 
 const ACCEPT = 'audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac,.webm';
 const AUDIO_EXT = /\.(mp3|wav|m4a|flac|ogg|aac|webm)$/i;
@@ -23,22 +24,38 @@ type IngestFn = (file: File | null) => Promise<void>;
 
 /** Receives an accepted clip instead of the composer's shared reference. */
 export type AcceptReference = (file: File, durationSeconds: number | null) => void;
+/** Receives a clip that must be trimmed before it can be a reference. */
+export type TrimRequest = (file: File, durationSeconds: number) => void;
 
-async function checkClip(file: File): Promise<SetReferenceResult> {
-  const durationSeconds = await probeAudioDuration(file);
-  return {
-    ok: !(durationSeconds !== null && durationSeconds > REF_HARD_MAX_SECONDS),
-    durationSeconds,
-    tooLong: durationSeconds !== null && durationSeconds > CLONE_MAX_SECONDS,
-  };
+/** Longer recordings are not decoded in the renderer at all: pick a shorter file. */
+export const REF_TRIM_INPUT_MAX_SECONDS = 30 * 60;
+
+/** Clips longer than the transcript limit go through the trimmer first. */
+export function needsReferenceTrim(durationSeconds: number | null): boolean {
+  return durationSeconds !== null && durationSeconds > REF_TEXT_MAX_SECONDS;
+}
+
+async function clipDuration(file: File): Promise<number | null> {
+  const probed = await probeAudioDuration(file);
+  if (probed !== null) return probed;
+  // MediaRecorder WebM carries no duration header (Chromium reports Infinity),
+  // so measure a low-rate decode instead; a file that cannot be decoded at all
+  // stays unknown and the backend reports it.
+  try {
+    const decoded = await decodeToMonoLowRate(file, 8000);
+    return Number.isFinite(decoded.duration) && decoded.duration > 0 ? decoded.duration : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Validate + load a reference clip, surfacing the length checks as toasts.
- * Without `onAccept` the clip becomes the composer's reference; with it (the
- * saved-profile editor) the same checks run and the clip is handed back.
+ * Clips over REF_TEXT_MAX_SECONDS are handed to `onTrim` and never accepted
+ * as they are. Without `onAccept` an accepted clip becomes the composer's
+ * reference; with it (the saved-profile editor) the clip is handed back.
  */
-function useIngest(onAccept?: AcceptReference): IngestFn {
+function useIngest(onAccept: AcceptReference | undefined, onTrim: TrimRequest): IngestFn {
   const { t } = useTranslation();
   // Monotonic pick token: a slow probe for an earlier clip must never replace
   // (or toast over) a later one.
@@ -50,13 +67,29 @@ function useIngest(onAccept?: AcceptReference): IngestFn {
       toast.error(t('clone.unsupported_audio'));
       return;
     }
-    const result: SetReferenceResult = onAccept
-      ? await checkClip(file)
-      : await setReferenceFile(file);
+    const durationSeconds = await clipDuration(file);
     if (pick !== latestPick.current) return;
-    if (onAccept && result.ok) onAccept(file, result.durationSeconds);
-    // An accepted long clip gets ReferenceUsageNote beside it instead: how
-    // much of it the active engine really uses (#2281).
+    if (durationSeconds !== null && durationSeconds > REF_TRIM_INPUT_MAX_SECONDS) {
+      toast.error(
+        t('referenceTrim.input_too_long', {
+          minutes: Math.round(durationSeconds / 60),
+          max: REF_TRIM_INPUT_MAX_SECONDS / 60,
+        }),
+      );
+      return;
+    }
+    if (durationSeconds !== null && needsReferenceTrim(durationSeconds)) {
+      onTrim(file, durationSeconds);
+      return;
+    }
+    if (onAccept) {
+      onAccept(file, durationSeconds);
+      return;
+    }
+    const result = await setReferenceFile(file, durationSeconds);
+    if (pick !== latestPick.current) return;
+    // Only a clip whose length could not be measured reaches the store's own
+    // ceiling; an accepted long clip gets ReferenceUsageNote beside it (#2281).
     if (!result.ok) {
       const duration = Math.round(result.durationSeconds ?? 0);
       toast.error(t('tts_errors.too_long', { duration, max: REF_HARD_MAX_SECONDS }));
@@ -81,9 +114,15 @@ export function ReferenceUsageNote({ durationSeconds }: { durationSeconds: numbe
   );
 }
 
-export function UploadZone({ onAccept }: { onAccept?: AcceptReference } = {}) {
+export interface ReferenceZoneProps {
+  onAccept?: AcceptReference;
+  /** Every entry point must say where an over-long clip goes to be trimmed. */
+  onTrim: TrimRequest;
+}
+
+export function UploadZone({ onAccept, onTrim }: ReferenceZoneProps) {
   const { t } = useTranslation();
-  const ingestFile = useIngest(onAccept);
+  const ingestFile = useIngest(onAccept, onTrim);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const id = useId();
@@ -129,9 +168,9 @@ export function UploadZone({ onAccept }: { onAccept?: AcceptReference } = {}) {
   );
 }
 
-export function RecordZone({ onAccept }: { onAccept?: AcceptReference } = {}) {
+export function RecordZone({ onAccept, onTrim }: ReferenceZoneProps) {
   const { t } = useTranslation();
-  const ingestFile = useIngest(onAccept);
+  const ingestFile = useIngest(onAccept, onTrim);
   const rec = useRecording((file) => void ingestFile(file));
   const hasSignal = rec.level >= LEVEL_THRESHOLD;
   let micButton;

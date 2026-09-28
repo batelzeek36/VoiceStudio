@@ -10,11 +10,17 @@ metadata and the backend fallback mirror it. Archived Tauri manifests stay froze
 
 **Highlights**
 - Voice Clone, Stories and Audiobook say how long a render will take on your machine, then count down while it runs
+- Voice Clone has a built-in trimmer: pick the exact stretch a new voice learns from, with 10, 15 and 20 s presets.
+
+### Added
+
+- Reference trimmer in Voice Clone: a clip over 20 s opens the trimmer automatically and a shorter clip offers Trim; length presets (10/15/20 s, keys 1/2/3) keep the start and set the length, the selection plays and loops on the waveform itself, cuts snap into pauses, Trim reopens the whole recording on the last cut, and only the trimmed WAV becomes the reference and is transcribed. The same trimmer also cuts a saved voice's stored reference or its replacement in Edit voice.
 
 ### Changed
 
 - Render time is estimated from your own machine's renders: beside Synthesize, after the Stories and Audiobook runtime, and as a live countdown; your first few renders calibrate it
 - Renders sent to a remote GPU worker are estimated from that worker's own end-to-end times, and an offline worker is named instead of a number
+- The gallery's Trim view now shares the Voice Clone trimmer, so it gains the length presets and pause snapping.
 
 ### Fixed
 
