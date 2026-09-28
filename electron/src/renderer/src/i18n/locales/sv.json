@@ -3208,6 +3208,11 @@
     "rough_hint": "Beräknad från renderingar med andra kvalitetsinställningar. Den blir exakt efter en rendering med de här inställningarna.",
     "inline_about": "rendering cirka {{time}}",
     "inline_roughly": "rendering ungefär {{time}}",
-    "inline_cold": "renderingstiden visas efter några renderingar på den här datorn"
+    "inline_cold": "renderingstiden visas efter några renderingar på den här datorn",
+    "range_on": "Oftast {{low}} till {{high}} på {{worker}}",
+    "cold_on": "Uppskattningen visas efter några renderingar på {{worker}}",
+    "inline_cold_on": "renderingstiden visas efter några renderingar på {{worker}}",
+    "offline": "{{worker}} är offline",
+    "unavailable": "{{worker}} kan inte rendera just nu"
   }
 }

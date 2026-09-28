@@ -3208,6 +3208,11 @@
     "rough_hint": "Afgeleid van renders met andere kwaliteitsinstellingen. Na een render met deze instellingen wordt hij exact.",
     "inline_about": "renderen ongeveer {{time}}",
     "inline_roughly": "renderen grofweg {{time}}",
-    "inline_cold": "rendertijd verschijnt na een paar renders op deze computer"
+    "inline_cold": "rendertijd verschijnt na een paar renders op deze computer",
+    "range_on": "Meestal {{low}} tot {{high}} op {{worker}}",
+    "cold_on": "De schatting verschijnt na een paar renders op {{worker}}",
+    "inline_cold_on": "rendertijd verschijnt na een paar renders op {{worker}}",
+    "offline": "{{worker}} is offline",
+    "unavailable": "{{worker}} kan nu niet renderen"
   }
 }

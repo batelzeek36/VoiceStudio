@@ -3210,6 +3210,11 @@
     "rough_hint": "Calculado a partir de renderizados con otros ajustes de calidad. Será exacto tras un renderizado con estos ajustes.",
     "inline_about": "renderizado de unos {{time}}",
     "inline_roughly": "renderizado de aproximadamente {{time}}",
-    "inline_cold": "el tiempo de renderizado aparece tras unos cuantos renderizados en este equipo"
+    "inline_cold": "el tiempo de renderizado aparece tras unos cuantos renderizados en este equipo",
+    "range_on": "Normalmente de {{low}} a {{high}} en {{worker}}",
+    "cold_on": "La estimación aparece tras unos cuantos renderizados en {{worker}}",
+    "inline_cold_on": "el tiempo de renderizado aparece tras unos cuantos renderizados en {{worker}}",
+    "offline": "{{worker}} está desconectado",
+    "unavailable": "{{worker}} no puede renderizar ahora"
   }
 }

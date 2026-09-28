@@ -3208,6 +3208,11 @@
     "rough_hint": "Quy đổi từ các lần kết xuất với cài đặt chất lượng khác. Sẽ chính xác sau một lần kết xuất với cài đặt này.",
     "inline_about": "kết xuất khoảng {{time}}",
     "inline_roughly": "kết xuất ước chừng {{time}}",
-    "inline_cold": "thời gian kết xuất sẽ xuất hiện sau vài lần kết xuất trên máy này"
+    "inline_cold": "thời gian kết xuất sẽ xuất hiện sau vài lần kết xuất trên máy này",
+    "range_on": "Thường từ {{low}} đến {{high}} trên {{worker}}",
+    "cold_on": "Ước tính sẽ xuất hiện sau vài lần kết xuất trên {{worker}}",
+    "inline_cold_on": "thời gian kết xuất sẽ xuất hiện sau vài lần kết xuất trên {{worker}}",
+    "offline": "{{worker}} đang ngoại tuyến",
+    "unavailable": "{{worker}} hiện không thể kết xuất"
   }
 }

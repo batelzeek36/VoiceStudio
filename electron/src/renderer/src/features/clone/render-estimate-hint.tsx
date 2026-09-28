@@ -1,10 +1,11 @@
 import type { TFunction } from 'i18next';
-import { TimerIcon } from 'lucide-react';
+import { ServerOffIcon, TimerIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGenerateClone } from '@/hooks/use-generate';
 import { useRenderEstimate } from '@/hooks/use-render-estimate';
 import { cloneEstimateRequest, type RenderEstimate } from '@/lib/api/render-estimate';
+import { estimateRange, remoteWorker, unavailableLine } from '@/lib/render-estimate-target';
 import { formatRenderDuration, takeRemaining } from '@/lib/render-estimate-time';
 import { useCloneSettings } from '@/lib/store/clone-settings';
 import { useReference } from '@/lib/store/reference';
@@ -16,19 +17,17 @@ export function estimateLine(
   estimate: RenderEstimate | null,
   t: TFunction,
   locale: string,
-): { text: string; title?: string } | null {
+): { text: string; title?: string; unavailable?: boolean } | null {
   if (!estimate) return null;
+  const unavailable = unavailableLine(estimate, t);
+  if (unavailable) return { text: unavailable, unavailable: true };
   if (estimate.seconds === null) {
-    return estimate.reason === 'cold_start' ? { text: t('renderEstimate.cold') } : null;
+    if (estimate.reason !== 'cold_start') return null;
+    const worker = remoteWorker(estimate);
+    return { text: worker ? t('renderEstimate.cold_on', { worker }) : t('renderEstimate.cold') };
   }
   const time = formatRenderDuration(estimate.seconds, locale);
-  const range =
-    estimate.low !== null && estimate.high !== null
-      ? t('renderEstimate.range', {
-          low: formatRenderDuration(estimate.low, locale),
-          high: formatRenderDuration(estimate.high, locale),
-        })
-      : undefined;
+  const range = estimateRange(estimate, t, locale);
   if (estimate.basis === 'rough') {
     return {
       text: t('renderEstimate.roughly', { time }),
@@ -39,8 +38,9 @@ export function estimateLine(
 }
 
 /**
- * Beside Synthesize: how long this take will render on this machine, then a
- * countdown while it renders. The estimate is frozen when the render starts so
+ * Beside Synthesize: how long this take will render where it runs (this
+ * machine, or the GPU worker the picker chose), then a countdown while it
+ * renders. The estimate is frozen when the render starts so
  * editing the script mid-render cannot move the countdown.
  */
 export function RenderEstimateHint() {
@@ -73,7 +73,7 @@ export function RenderEstimateHint() {
     };
   }, [rendering]);
 
-  let line: { text: string; title?: string } | null = null;
+  let line: { text: string; title?: string; unavailable?: boolean } | null = null;
   if (isGenerating) {
     const remaining =
       clock && frozen?.estimate
@@ -97,7 +97,11 @@ export function RenderEstimateHint() {
       title={line.title}
       className="flex max-w-56 min-w-0 items-center justify-end gap-1.5 text-right text-xs text-muted-foreground tabular-nums"
     >
-      <TimerIcon className="size-3.5 shrink-0" aria-hidden="true" />
+      {line.unavailable ? (
+        <ServerOffIcon className="size-3.5 shrink-0" aria-hidden="true" />
+      ) : (
+        <TimerIcon className="size-3.5 shrink-0" aria-hidden="true" />
+      )}
       <span className="min-w-0">{line.text}</span>
     </p>
   );

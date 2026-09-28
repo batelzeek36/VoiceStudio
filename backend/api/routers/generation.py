@@ -1788,7 +1788,7 @@ async def generate_speech(
 
     # Render-time estimate (docs/adr/render-time-estimate.md): every local
     # synthesis call of this request is timed on THIS machine. A remote render
-    # runs elsewhere and records nothing here.
+    # is timed as one task, end to end, by the gateway (services/render_remote.py).
     from services import render_timing
     _timing = render_timing.UNTIMED
     if not _remote:
@@ -1978,6 +1978,9 @@ async def generate_speech(
     }
     _remote_call = gpu_gateway.RemoteCall(
         engine=engine_id, operation=_REMOTE_OP, params=_remote_params,
+        # Render-time estimate: this take's end-to-end time on the worker is
+        # filed under these steps (services/render_remote.py).
+        timed={"num_step": render_timing.timing_steps(backend_cls, num_step), "speed": speed},
     )
 
     async def _render_on_worker(on_state=None):

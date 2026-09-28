@@ -1,11 +1,14 @@
-"""``POST /render/estimate``: how long a render will take on THIS machine.
+"""``POST /render/estimate``: how long a render will take where it will run.
 
 docs/adr/render-time-estimate.md. Takes what a render takes (the Voice cloning
 form for ``surface="generate"``, the ``/audiobook`` body for ``"audiobook"``,
 the ``/longform/render`` body for ``"longform"``), plans the engine calls with
 the same code the render runs (services/render_plan.py) and prices them with
-the timings this machine recorded (services/render_timing.py). No model load,
-no network, no write: safe to call on every keystroke (debounced).
+the timings recorded for the target the render will actually go to: this
+machine's calls (services/render_timing.py), or, when the GPU picker sends the
+work to a remote worker, that worker's end-to-end task timings
+(services/render_remote.py). No model load, no network, no write: safe to call
+on every keystroke (debounced).
 """
 from __future__ import annotations
 
@@ -18,7 +21,7 @@ from pydantic import Field
 
 from api.routers.audiobook import ExpressiveMixin, LongformChapter
 from services import render_estimate as estimator
-from services import render_plan, render_timing, render_warmth
+from services import render_plan, render_remote, render_timing, render_warmth
 
 router = APIRouter()
 logger = logging.getLogger("omnivoice.render_estimate")
@@ -60,13 +63,19 @@ def _backend_class(engine_id: str):
         raise HTTPException(status_code=400, detail=f"Unknown TTS engine: {engine_id!r}") from None
 
 
-def _runs_remotely(surface: str) -> bool:
-    try:
-        from services import gpu_gateway
+def _route(surface: str) -> render_remote.Route:
+    """Where this surface's render would go right now (the GPU picker)."""
+    return render_remote.route_for(_REMOTE_OPS[surface])
 
-        return bool(getattr(gpu_gateway.decide(_REMOTE_OPS[surface]), "remote", False))
-    except Exception:  # noqa: BLE001 - routing is advisory; local always works
-        return False
+
+def _unavailable(engine_id: str, route: render_remote.Route) -> dict:
+    return _with_target(estimator.unavailable_estimate(engine=render_timing.clean_id(engine_id)),
+                        route)
+
+
+def _with_target(result: dict, route: render_remote.Route) -> dict:
+    """Name where the priced render runs (never the worker id)."""
+    return {**result, "target": route.to_dict()}
 
 
 def _pace(ref_audio: Optional[str], ref_text: Optional[str],
@@ -124,6 +133,36 @@ def _price(engine_id: str, backend_cls, num_step, planned: list[list[render_plan
     )
 
 
+def _price_remote(engine_id: str, backend_cls, num_step,
+                  planned: list[list[render_plan.PlannedCall]], pace_of,
+                  route: render_remote.Route, *, detail: bool = False) -> dict:
+    """Price a render on the worker ``route`` names, from that worker's own
+    bucket. A remote task is a whole unit (the take, or one chapter): each
+    part is planned as one call carrying all of its audio, and the model
+    load is added when the worker's heartbeats say the engine is not resident."""
+    engine = render_remote.engine_for(engine_id)
+    omnivoice = render_plan.uses_omnivoice_estimator(backend_cls)
+    rate = render_timing.seconds_per_char(engine)
+    parts: list[list[estimator.PlannedAudio]] = []
+    for part in planned:
+        audio = [render_plan.call_audio_seconds(call, omnivoice=omnivoice, pace_of=pace_of,
+                                                seconds_per_char=rate) for call in part]
+        known = all(a is not None for a in audio)
+        parts.append([(sum(audio) if known else None, 0.0)] if part else [])
+    warmups: list[list[str]] = [[] for _ in parts]
+    first = next((index for index, part in enumerate(parts) if part), None)
+    if first is not None and render_remote.worker_resident(route.worker_id, engine_id) is False:
+        warmups[first].append(render_warmth.LOAD)  # paid by that part's first (only) task
+    return estimator.estimate(
+        engine=engine,
+        device=route.device,
+        num_step=render_timing.timing_steps(backend_cls, num_step),
+        parts=parts,
+        warmups=warmups,
+        detail=detail,
+    )
+
+
 def _estimate_generate(req: RenderEstimateRequest) -> dict:
     from services.performance_profiles import tts_defaults
     from services.synthesis_text import prepare_synthesis_text
@@ -136,8 +175,9 @@ def _estimate_generate(req: RenderEstimateRequest) -> dict:
     num_step = req.num_step
     if num_step is None:
         num_step = tts_defaults(engine_id).get("num_step", 16)
-    if _runs_remotely("generate"):
-        return estimator.remote_estimate(engine=render_timing.clean_id(engine_id), calls=0)
+    route = _route("generate")
+    if route.kind == render_remote.UNAVAILABLE:
+        return _unavailable(engine_id, route)
 
     language = req.language
     pace = render_plan.VoicePace()
@@ -161,7 +201,11 @@ def _estimate_generate(req: RenderEstimateRequest) -> dict:
     calls = render_plan.generate_calls(
         text, max_chunk_chars=req.max_chunk_chars, speed=req.speed, duration=req.duration,
     )
-    return _price(engine_id, backend_cls, num_step, [calls], lambda _voice: pace)
+    if route.remote:
+        return _with_target(_price_remote(engine_id, backend_cls, num_step, [calls],
+                                          lambda _voice: pace, route), route)
+    return _with_target(_price(engine_id, backend_cls, num_step, [calls], lambda _voice: pace),
+                        route)
 
 
 def _estimate_longform(req: RenderEstimateRequest) -> dict:
@@ -173,24 +217,26 @@ def _estimate_longform(req: RenderEstimateRequest) -> dict:
 
     plan = (parse_audiobook_script(req.text or "", default_voice=req.default_voice)
             if req.surface == "audiobook" else plan_from_chapters(req.chapters or []))
-    if _runs_remotely(req.surface):
-        return estimator.remote_estimate(engine=render_timing.clean_id(active_backend_id()),
-                                         calls=0)
+    route = _route(req.surface)
+    if route.kind == render_remote.UNAVAILABLE:
+        return _unavailable(active_backend_id(), route)
     return plan_longform(
         plan, default_voice=req.default_voice, voice_map=req.voice_map,
         language=_resolve_default_language(req.language, req.default_voice),
-        lexicon=req.lexicon, opts=_expressive_opts(req),
+        lexicon=req.lexicon, opts=_expressive_opts(req), route=route,
     )
 
 
 def plan_longform(plan, *, default_voice, voice_map, language, lexicon, opts,
-                  detail: bool = False) -> dict:
-    """Plan and price a longform render (Audiobook, Stories) on this machine.
+                  detail: bool = False,
+                  route: render_remote.Route = render_remote.LOCAL_ROUTE) -> dict:
+    """Plan and price a longform render (Audiobook, Stories) where it runs.
 
     ``plan`` is the parsed :class:`services.audiobook.AudiobookPlan` and
     ``language`` the already-resolved render language. Shared by the estimate
     endpoint and by a running render, which asks with ``detail`` for the
-    per-call plan its live countdown follows.
+    per-call plan its live countdown follows (one call per chapter on a
+    remote ``route``: a worker renders a chapter as one task).
     """
     from api.routers.audiobook import _engine_num_step, _map_span_voice, _resolve_voice
     from services.audiobook import normalized_spans
@@ -216,8 +262,12 @@ def plan_longform(plan, *, default_voice, voice_map, language, lexicon, opts,
                                   paragraph_gap_ms=opts.paragraph_gap_ms)
         for chapter in plan.chapters
     ]
-    return _price(engine_id, backend_cls, _engine_num_step(backend_cls, opts), planned,
-                  pace_of, detail=detail)
+    num_step = _engine_num_step(backend_cls, opts)
+    if route.remote:
+        return _with_target(_price_remote(engine_id, backend_cls, num_step, planned, pace_of,
+                                          route, detail=detail), route)
+    return _with_target(_price(engine_id, backend_cls, num_step, planned, pace_of,
+                               detail=detail), route)
 
 
 @router.post("/render/estimate")
@@ -227,7 +277,9 @@ def render_estimate(req: RenderEstimateRequest) -> dict:
     Response: ``seconds``, ``low``, ``high`` (``None`` unless measured or
     rough), ``calls``, ``samples`` (warm calls the model is fitted on),
     ``basis`` (``measured`` | ``rough`` | ``none``), ``reason`` (why
-    ``none``: ``cold_start``, ``remote`` or ``no_rate``), ``audio_seconds``,
+    ``none``: ``cold_start``, ``remote_unavailable`` or ``no_rate``),
+    ``target`` (``{"kind": "local"}``, or ``remote`` / ``unavailable`` with the
+    worker's ``label``; ``offline`` for an unavailable one), ``audio_seconds``,
     ``warmup_seconds`` (measured cold-start cost included: an engine load, a
     long reference's first passage choice), the ``engine`` / ``device`` /
     ``num_step`` bucket, and ``parts``: calls and seconds per chapter (one

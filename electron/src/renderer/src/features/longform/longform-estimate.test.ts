@@ -40,7 +40,15 @@ it('plans chapters only when the estimate has a number', () => {
     { calls: 2, seconds: 30 },
     { calls: 1, seconds: 10 },
   ];
-  const base = { reason: null, low: 30, high: 50, calls: 3, samples: 5, parts };
+  const base = {
+    reason: null,
+    low: 30,
+    high: 50,
+    calls: 3,
+    samples: 5,
+    parts,
+    target: { kind: 'local' as const },
+  };
   expect(plannedChapterSeconds({ ...base, basis: 'measured', seconds: 40 })).toEqual([30, 10]);
   expect(
     plannedChapterSeconds({ ...base, basis: 'none', reason: 'cold_start', seconds: null }),

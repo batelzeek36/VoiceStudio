@@ -3210,6 +3210,11 @@
     "rough_hint": "Extrapolée à partir de rendus avec d'autres réglages de qualité. Elle devient exacte après un rendu avec ces réglages.",
     "inline_about": "rendu d'environ {{time}}",
     "inline_roughly": "rendu d'à peu près {{time}}",
-    "inline_cold": "la durée de rendu apparaît après quelques rendus sur cet appareil"
+    "inline_cold": "la durée de rendu apparaît après quelques rendus sur cet appareil",
+    "range_on": "En général de {{low}} à {{high}} sur {{worker}}",
+    "cold_on": "L'estimation apparaît après quelques rendus sur {{worker}}",
+    "inline_cold_on": "la durée de rendu apparaît après quelques rendus sur {{worker}}",
+    "offline": "{{worker}} est hors ligne",
+    "unavailable": "{{worker}} ne peut pas effectuer de rendu pour le moment"
   }
 }

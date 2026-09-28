@@ -315,6 +315,10 @@ class RemoteCall:
     deadline_seconds: Optional[float] = None
     idempotency_key: Optional[str] = None
     decode: Optional[Callable[[RemoteResult], Any]] = None
+    # Render-time estimate (services/render_remote.py): the numbers this
+    # task's timing row is filed under (``num_step``, ``speed``). Set by the
+    # render surfaces; None records nothing. Never sent to the worker.
+    timed: Optional[dict] = None
 
 
 # ── Multi-unit jobs (rule 3) ───────────────────────────────────────────────
@@ -595,6 +599,15 @@ async def _run_remote(
             input_seconds=float(params.get("input_seconds") or 0.0),
         )
 
+    # Render-time estimate: time the task end to end on this side, from
+    # dispatch to the result read back (upload, queue, model load, download).
+    from services import render_remote  # noqa: PLC0415
+
+    timer = render_remote.begin(call, decision, control_plane=plane)
+    if timer is not None:
+        on_state = timer.watch(on_state)
+        timer.start()
+
     try:
         submit = getattr(scheduler, "submit_async", None)
         submit = submit if callable(submit) else scheduler.submit
@@ -632,7 +645,10 @@ async def _run_remote(
             decision,
         ) from exc
 
-    return _decode(call, settled, decision)
+    value = _decode(call, settled, decision)
+    if timer is not None:
+        timer.finish(settled)
+    return value
 
 
 async def preflight(

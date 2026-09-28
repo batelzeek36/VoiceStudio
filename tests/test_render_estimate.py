@@ -64,6 +64,10 @@ def client(db, monkeypatch):
         remote = False
 
     monkeypatch.setattr(gpu_gateway, "decide", lambda op, **kw: _Local())
+    # The GPU picker says Local unless a test says otherwise (patched on the
+    # router's own module object, which is the one it calls).
+    monkeypatch.setattr(render_estimate.render_remote, "route_for",
+                        lambda op, **kw: render_estimate.render_remote.LOCAL_ROUTE)
 
     async def no_model(*_a, **_k):
         raise AssertionError("an estimate must never load a model")
@@ -294,18 +298,6 @@ def test_stories_plan_drops_empty_chapters_like_the_render(client):
     }).json()
     assert len(body["parts"]) == 1 and body["calls"] == 1
     assert client.post("/render/estimate", json={"surface": "longform"}).status_code == 422
-
-
-def test_remote_renders_are_not_estimated_from_this_machine(client, monkeypatch):
-    from services import gpu_gateway
-
-    class _Remote:
-        remote = True
-
-    monkeypatch.setattr(gpu_gateway, "decide", lambda op, **kw: _Remote())
-    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (2.0, 4.0, 8.0)])
-    body = client.post("/render/estimate", json={"surface": "generate", "text": "Hi."}).json()
-    assert body["basis"] == "none" and body["reason"] == "remote"
 
 
 def test_unknown_engine_and_bad_numbers_are_rejected(client):

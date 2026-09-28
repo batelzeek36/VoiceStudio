@@ -3208,6 +3208,11 @@
     "rough_hint": "Hochgerechnet aus Renderings mit anderen Qualitätseinstellungen. Nach einem Rendering mit diesen Einstellungen wird sie genau.",
     "inline_about": "Rendern etwa {{time}}",
     "inline_roughly": "Rendern grob {{time}}",
-    "inline_cold": "Renderdauer erscheint nach einigen Renderings auf diesem Gerät"
+    "inline_cold": "Renderdauer erscheint nach einigen Renderings auf diesem Gerät",
+    "range_on": "Meist {{low}} bis {{high}} auf {{worker}}",
+    "cold_on": "Die Schätzung erscheint nach einigen Renderings auf {{worker}}",
+    "inline_cold_on": "Renderdauer erscheint nach einigen Renderings auf {{worker}}",
+    "offline": "{{worker}} ist offline",
+    "unavailable": "{{worker}} kann gerade nicht rendern"
   }
 }

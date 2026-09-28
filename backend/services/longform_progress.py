@@ -6,12 +6,18 @@ ended. :func:`chapter_with_progress` runs one chapter while draining the
 per-call reports ``synthesize_chapter`` makes from the worker thread, feeds
 them to the :class:`services.render_countdown.RenderCountdown`, and yields a
 progress payload after each call, then the chapter's result.
+
+A chapter sent to a remote worker is one task that reports nothing until it
+returns, so :func:`timed_chapter` feeds the countdown one call per chapter:
+the pace is re-fitted per chapter, and between chapters the client counts the
+chapter in flight down from its planned cost (estimate minus elapsed).
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import queue
+import time
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 from services.render_countdown import RenderCountdown
@@ -46,6 +52,22 @@ def progress_event(countdown: RenderCountdown, chapter: int) -> dict:
     }
 
 
+async def timed_chapter(
+    start: Callable[[], Awaitable[Any]],
+    countdown: RenderCountdown,
+    chapter: int,
+) -> Any:
+    """Run a chapter that reports no calls of its own (a remote worker renders
+    it as one task) and tell ``countdown`` what it cost as its single call.
+    A chapter served from the cache (``result[2]``) cost nothing and teaches
+    the pace nothing; a failed one propagates and is closed by the caller."""
+    started = time.perf_counter()
+    result = await start()
+    cached = bool(result[2]) if isinstance(result, tuple) and len(result) > 2 else False
+    countdown.call_done(chapter, 0, None if cached else time.perf_counter() - started)
+    return result
+
+
 async def chapter_with_progress(
     start: Callable[[OnCall], Awaitable[Any]],
     countdown: RenderCountdown,
@@ -77,4 +99,4 @@ async def chapter_with_progress(
             task.cancel()
 
 
-__all__ = ["POLL_S", "chapter_with_progress", "countdown_for", "progress_event"]
+__all__ = ["POLL_S", "chapter_with_progress", "countdown_for", "progress_event", "timed_chapter"]
