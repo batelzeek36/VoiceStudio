@@ -33,9 +33,18 @@ def selected_backend() -> str:
 
 
 def sortformer_model_path() -> Path:
+    """The Sortformer GGUF as it is named: absolute, symlinks NOT resolved.
+
+    The Hugging Face cache on macOS and Linux names the file in
+    ``snapshots/<rev>/...q8_0.gguf`` as a symlink to ``blobs/<sha256>``, which
+    has no extension. Resolving here handed every caller the blob, so the
+    ``.gguf`` check below failed forever and a complete download still read
+    "Install the Sortformer model bundle". Opening the named path follows the
+    link; :func:`check_sortformer_model` resolves only to open it.
+    """
     configured = os.environ.get("OMNIVOICE_DIARIZATION_MODEL", "").strip()
     if configured:
-        return Path(configured).expanduser().resolve()
+        return Path(os.path.abspath(Path(configured).expanduser()))
 
     # An installed-only lookup never reaches the network. Installation remains
     # an explicit Model Library action through the reviewed audio.cpp bundle.
@@ -49,7 +58,27 @@ def sortformer_model_path() -> Path:
             revision=revision_for(SORTFORMER_REPO),
             local_files_only=True,
         )
-    ).resolve()
+    )
+
+
+def check_sortformer_model(model: Path) -> None:
+    """Accept only an existing GGUF named ``*.gguf``.
+
+    The name is judged on the path as named (see :func:`sortformer_model_path`:
+    a resolved cache path is an extensionless blob); the file itself is
+    opened through its resolved target and must start with the GGUF magic.
+    Raises ``FileNotFoundError`` when it is absent or not named ``.gguf`` and
+    ``ValueError`` when its contents are not GGUF; other ``OSError``s pass
+    through. Messages carry no path.
+    """
+    if model.suffix.lower() != ".gguf":
+        raise FileNotFoundError("The configured Sortformer model is not a .gguf file")
+    target = model.resolve()
+    if not target.is_file():
+        raise FileNotFoundError("The configured Sortformer GGUF is missing")
+    with target.open("rb") as model_file:
+        if model_file.read(4) != b"GGUF":
+            raise ValueError("The configured Sortformer model is not a GGUF file")
 
 
 def select_backend(backend: str) -> None:
@@ -72,13 +101,10 @@ def sortformer_status() -> dict:
     except Exception:
         return status
     try:
-        if not model.is_file() or model.suffix.lower() != ".gguf":
-            return status
-        with model.open("rb") as model_file:
-            if model_file.read(4) != b"GGUF":
-                status["reason"] = _SORTFORMER_MODEL_BROKEN
-                return status
-    except OSError:
+        check_sortformer_model(model)
+    except FileNotFoundError:
+        return status
+    except (OSError, ValueError):
         status["reason"] = _SORTFORMER_MODEL_BROKEN
         return status
 

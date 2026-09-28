@@ -60,6 +60,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Sortformer speaker diarisation reads as installed right after its download on macOS and Linux, instead of asking for the model bundle again
 - macOS development launches use the maintained Electron version and icon paths (#2351)
 - Electron detects and repairs incomplete PyTorch, torchaudio and torchvision runtime wheels before backend startup (#2354) — thanks @jonathanmoronta1-lab!
 - Returning to local mode discards sessions from unsaved remote-backend connection tests (#2356)
