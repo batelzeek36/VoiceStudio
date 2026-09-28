@@ -1,5 +1,6 @@
 """Per-call render timings: recorded at every synthesis chokepoint, content-free,
 capped, and never able to break a render (docs/adr/render-time-estimate.md)."""
+import importlib
 import json
 import sqlite3
 from pathlib import Path
@@ -9,6 +10,20 @@ import torch
 
 import core.db as core_db
 from services import render_timing
+
+
+@pytest.fixture(autouse=True)
+def _live_backend_modules():
+    """Rebind this file's module aliases to the live modules before each test.
+
+    tests/backend/conftest.py purges ``core.*`` and ``services.*`` from
+    sys.modules after each of its tests, so in a full-suite run an alias bound
+    at collection is a stale object, while the code under test imports lazily
+    and never sees a patch made on the stale one (tests/conftest.py,
+    asr_model_installed, has the same note)."""
+    global core_db, render_timing
+    core_db = importlib.import_module("core.db")
+    render_timing = importlib.import_module("services.render_timing")
 
 
 def _connect(path):

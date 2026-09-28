@@ -1,6 +1,7 @@
 """POST /render/estimate: plans the calls the real render makes, prices them
 with this machine's own timings, and stays silent until it has three samples
 (docs/adr/render-time-estimate.md)."""
+import importlib
 import sqlite3
 
 import numpy as np
@@ -15,6 +16,23 @@ from core import device_caps
 from services import render_plan, render_timing
 
 _CPU = device_caps.HostCaps(family="cpu", available_families=("cpu",))
+
+
+@pytest.fixture(autouse=True)
+def _live_backend_modules():
+    """Rebind this file's module aliases to the live modules before each test.
+
+    tests/backend/conftest.py purges ``core.*`` and ``services.*`` from
+    sys.modules after each of its tests, so in a full-suite run an alias bound
+    at collection is a stale object, while the code under test imports lazily
+    and never sees a patch made on the stale one (tests/conftest.py,
+    asr_model_installed, has the same note)."""
+    global core_db, device_caps, render_plan, render_timing, _CPU
+    core_db = importlib.import_module("core.db")
+    device_caps = importlib.import_module("core.device_caps")
+    render_plan = importlib.import_module("services.render_plan")
+    render_timing = importlib.import_module("services.render_timing")
+    _CPU = device_caps.HostCaps(family="cpu", available_families=("cpu",))
 
 
 def _connect(path):
