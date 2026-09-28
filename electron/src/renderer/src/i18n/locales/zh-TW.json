@@ -1981,11 +1981,11 @@
   "referenceTrim": {
     "title": "選擇要克隆的片段",
     "description": "選擇 8 到 15 秒聲音聽起來符合你要求的部分。克隆會照搬這幾秒的說話方式。",
-    "limit": "最多可使用 {{max}} 秒。",
+    "limit": "最多使用 {{max}} 秒。",
     "use": "使用此片段",
     "trim": "裁剪",
     "input_too_long": "{{minutes}} 分鐘太長，無法在此開啟。請使用短於 {{max}} 分鐘的錄音。",
-    "not_kept": "未保留該片段。請從中選擇最多 {{max}} 秒來使用。"
+    "not_kept": "未加入該片段。請從中選擇最多 {{max}} 秒來加入。"
   },
   "voice_profile": {
     "persona_export": "匯出角色",

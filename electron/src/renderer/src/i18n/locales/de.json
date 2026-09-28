@@ -1981,11 +1981,11 @@
   "referenceTrim": {
     "title": "Passage zum Klonen wählen",
     "description": "Wähle 8 bis 15 Sekunden, in denen die Stimme so klingt, wie du sie willst. Der Klon übernimmt, wie diese Sekunden gesprochen werden.",
-    "limit": "Bis zu {{max}} Sekunden können verwendet werden.",
+    "limit": "Verwende bis zu {{max}} Sekunden.",
     "use": "Diese Passage verwenden",
     "trim": "Zuschneiden",
     "input_too_long": "{{minutes}} min sind zu lang, um sie hier zu öffnen. Verwende eine Aufnahme unter {{max}} min.",
-    "not_kept": "Der Clip wurde nicht übernommen. Wähle bis zu {{max}} Sekunden daraus, um ihn zu verwenden."
+    "not_kept": "Clip nicht übernommen. Wähle bis zu {{max}} Sekunden daraus, um ihn zu übernehmen."
   },
   "voice_profile": {
     "persona_export": "Persona exportieren",

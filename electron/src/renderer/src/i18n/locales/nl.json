@@ -1981,11 +1981,11 @@
   "referenceTrim": {
     "title": "Kies het fragment om te klonen",
     "description": "Kies 8 tot 15 seconden waarin de stem klinkt zoals je wilt. De kloon neemt over hoe die seconden worden uitgesproken.",
-    "limit": "Er kunnen maximaal {{max}} seconden worden gebruikt.",
+    "limit": "Gebruik maximaal {{max}} seconden.",
     "use": "Dit fragment gebruiken",
     "trim": "Bijsnijden",
     "input_too_long": "{{minutes}} min is te lang om hier te openen. Gebruik een opname korter dan {{max}} min.",
-    "not_kept": "De clip is niet bewaard. Kies er maximaal {{max}} seconden uit om hem te gebruiken."
+    "not_kept": "Clip niet toegevoegd. Kies er maximaal {{max}} seconden uit om hem toe te voegen."
   },
   "voice_profile": {
     "persona_export": "Persona exporteren",

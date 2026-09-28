@@ -1985,11 +1985,11 @@
   "referenceTrim": {
     "title": "Wybierz fragment do sklonowania",
     "description": "Wybierz 8 do 15 sekund, w których głos brzmi tak, jak chcesz. Klon kopiuje sposób wypowiedzenia tych sekund.",
-    "limit": "Można użyć maksymalnie {{max}} sekund.",
+    "limit": "Użyj maksymalnie {{max}} sekund.",
     "use": "Użyj tego fragmentu",
     "trim": "Przytnij",
     "input_too_long": "{{minutes}} min to za dużo, aby otworzyć tutaj. Użyj nagrania krótszego niż {{max}} min.",
-    "not_kept": "Klip nie został zachowany. Wybierz z niego maksymalnie {{max}} sekund, aby go użyć."
+    "not_kept": "Klip nie został dodany. Wybierz z niego maksymalnie {{max}} sekund, aby go dodać."
   },
   "voice_profile": {
     "persona_export": "Eksportuj osobę",

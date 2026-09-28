@@ -199,7 +199,9 @@ export function AudioTrimmer({
         return;
       }
       if (event.key === 'Enter') {
-        if (target?.closest('button,a,[role="button"]')) return;
+        // Only Cancel and the confirm keep their own Enter; a preset, Play or
+        // Fine-tune left focused by a click must not re-fire instead.
+        if (target?.closest('[data-slot="audio-trimmer-footer"],a')) return;
         handled();
         handlers.current.save();
         return;
@@ -312,17 +314,17 @@ export function AudioTrimmer({
           <Collapsible
             open={fineTune}
             onOpenChange={setFineTune}
-            className="rounded-lg bg-muted/30"
+            className="flex flex-col items-start gap-2"
           >
-            <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[length:var(--text-label)] font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50">
+            <CollapsibleTrigger className="inline-flex items-center gap-1 rounded-sm text-[length:var(--text-caption)] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
               {t('trimmer.fine_tune')}
               <ChevronDownIcon
-                className={cn('size-3.5 transition-transform', fineTune && 'rotate-180')}
+                className={cn('size-3 transition-transform', fineTune && 'rotate-180')}
                 aria-hidden="true"
               />
             </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="flex flex-col gap-3 px-3 pb-3">
+            <CollapsibleContent className="w-full">
+              <div className="flex flex-col gap-3 rounded-lg bg-muted/30 p-3">
                 <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
                   {(['start', 'end'] as const).map((key) => (
                     <SecondsField
@@ -436,7 +438,7 @@ export function AudioTrimmer({
               </div>
             </CollapsibleContent>
           </Collapsible>
-          <div className="flex justify-end gap-2">
+          <div data-slot="audio-trimmer-footer" className="flex justify-end gap-2">
             <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
               {t('common.cancel')}
             </Button>

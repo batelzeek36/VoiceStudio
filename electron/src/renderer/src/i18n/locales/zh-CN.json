@@ -1985,11 +1985,11 @@
   "referenceTrim": {
     "title": "选择要克隆的片段",
     "description": "选择 8 到 15 秒声音听起来符合你要求的部分。克隆会照搬这几秒的说话方式。",
-    "limit": "最多可使用 {{max}} 秒。",
+    "limit": "最多使用 {{max}} 秒。",
     "use": "使用此片段",
     "trim": "裁剪",
     "input_too_long": "{{minutes}} 分钟太长，无法在此打开。请使用短于 {{max}} 分钟的录音。",
-    "not_kept": "未保留该片段。请从中选择最多 {{max}} 秒来使用。"
+    "not_kept": "未添加该片段。请从中选择最多 {{max}} 秒来添加。"
   },
   "voice_profile": {
     "persona_export": "导出角色",

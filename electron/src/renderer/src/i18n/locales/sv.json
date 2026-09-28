@@ -1981,11 +1981,11 @@
   "referenceTrim": {
     "title": "Välj avsnittet som ska klonas",
     "description": "Välj 8 till 15 sekunder där rösten låter som du vill. Klonen kopierar hur de sekunderna sägs.",
-    "limit": "Upp till {{max}} sekunder kan användas.",
+    "limit": "Använd upp till {{max}} sekunder.",
     "use": "Använd det här avsnittet",
     "trim": "Trimma",
     "input_too_long": "{{minutes}} min är för långt för att öppna här. Använd en inspelning under {{max}} min.",
-    "not_kept": "Klippet behölls inte. Välj upp till {{max}} sekunder av det för att använda det."
+    "not_kept": "Klippet lades inte till. Välj upp till {{max}} sekunder av det för att lägga till det."
   },
   "voice_profile": {
     "persona_export": "Exportera persona",

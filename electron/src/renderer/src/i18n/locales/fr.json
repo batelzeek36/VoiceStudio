@@ -1983,11 +1983,11 @@
   "referenceTrim": {
     "title": "Choisissez le passage à cloner",
     "description": "Choisissez 8 à 15 secondes où la voix sonne comme vous le souhaitez. Le clone copie la façon dont ces secondes sont dites.",
-    "limit": "Jusqu'à {{max}} secondes peuvent être utilisées.",
+    "limit": "Utilisez jusqu'à {{max}} secondes.",
     "use": "Utiliser ce passage",
     "trim": "Rogner",
     "input_too_long": "{{minutes}} min, c’est trop long pour l’ouvrir ici. Utilisez un enregistrement de moins de {{max}} min.",
-    "not_kept": "Le clip n'a pas été conservé. Choisissez-en jusqu'à {{max}} secondes pour l'utiliser."
+    "not_kept": "Clip non ajouté. Choisissez-en jusqu'à {{max}} secondes pour l'ajouter."
   },
   "voice_profile": {
     "persona_export": "Exporter le personnage",

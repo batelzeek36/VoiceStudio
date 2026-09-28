@@ -1983,11 +1983,11 @@
   "referenceTrim": {
     "title": "Scegli il passaggio da clonare",
     "description": "Scegli da 8 a 15 secondi in cui la voce suona come vuoi. Il clone copia il modo in cui vengono detti quei secondi.",
-    "limit": "Si possono usare fino a {{max}} secondi.",
+    "limit": "Usa fino a {{max}} secondi.",
     "use": "Usa questo passaggio",
     "trim": "Ritaglia",
     "input_too_long": "{{minutes}} min sono troppi per aprirli qui. Usa una registrazione sotto i {{max}} min.",
-    "not_kept": "La clip non è stata mantenuta. Scegline fino a {{max}} secondi per usarla."
+    "not_kept": "Clip non aggiunta. Scegline fino a {{max}} secondi per aggiungerla."
   },
   "voice_profile": {
     "persona_export": "Esporta personaggio",

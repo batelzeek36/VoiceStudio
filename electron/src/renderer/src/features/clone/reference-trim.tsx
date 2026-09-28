@@ -77,10 +77,15 @@ export function ReferenceTrimDialog({
         if (!open) onCancel();
       }}
     >
-      <DialogContent showCloseButton={false} className="min-w-0 sm:max-w-3xl">
+      <DialogContent
+        showCloseButton={false}
+        // Anchored to the top, not centred: Fine-tune grows the dialog
+        // downward and the waveform stays where the eye left it.
+        className="top-[clamp(1rem,10vh,6rem)] max-h-[calc(100dvh-2rem)] min-w-0 translate-y-0 overflow-y-auto sm:max-w-3xl"
+      >
         <DialogHeader>
           <DialogTitle>{t('referenceTrim.title')}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="max-w-[70ch]">
             {t('referenceTrim.description')}{' '}
             {t('referenceTrim.limit', { max: REF_TEXT_MAX_SECONDS })}
           </DialogDescription>

@@ -1981,11 +1981,11 @@
   "referenceTrim": {
     "title": "Klonlanacak bölümü seçin",
     "description": "Sesin istediğiniz gibi çıktığı 8 ile 15 saniyeyi seçin. Klon, bu saniyelerin nasıl söylendiğini kopyalar.",
-    "limit": "En fazla {{max}} saniye kullanılabilir.",
+    "limit": "En fazla {{max}} saniye kullanın.",
     "use": "Bu bölümü kullan",
     "trim": "Kırp",
     "input_too_long": "{{minutes}} dk burada açmak için çok uzun. {{max}} dk altında bir kayıt kullanın.",
-    "not_kept": "Klip tutulmadı. Kullanmak için en fazla {{max}} saniyesini seçin."
+    "not_kept": "Klip eklenmedi. Eklemek için en fazla {{max}} saniyesini seçin."
   },
   "voice_profile": {
     "persona_export": "Kişiyi dışa aktar",

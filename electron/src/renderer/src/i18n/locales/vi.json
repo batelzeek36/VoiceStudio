@@ -1981,11 +1981,11 @@
   "referenceTrim": {
     "title": "Chọn đoạn để nhân bản",
     "description": "Chọn 8 đến 15 giây khi giọng nói nghe đúng như bạn muốn. Bản nhân bản sao chép cách những giây đó được nói.",
-    "limit": "Có thể dùng tối đa {{max}} giây.",
+    "limit": "Dùng tối đa {{max}} giây.",
     "use": "Dùng đoạn này",
     "trim": "Cắt",
     "input_too_long": "{{minutes}} phút là quá dài để mở ở đây. Hãy dùng bản ghi dưới {{max}} phút.",
-    "not_kept": "Clip chưa được giữ lại. Chọn tối đa {{max}} giây của clip để dùng."
+    "not_kept": "Chưa thêm clip. Chọn tối đa {{max}} giây của clip để thêm."
   },
   "voice_profile": {
     "persona_export": "Xuất khẩu nhân vật",

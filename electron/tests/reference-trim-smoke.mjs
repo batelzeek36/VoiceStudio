@@ -203,9 +203,18 @@ try {
   assert(length <= 20, `capped drag ${length}`);
   await page.keyboard.press('1');
 
-  // 5. Fine-tune: exact seconds, snap, loop, zoom, and the keys legend.
+  // 5. Fine-tune: exact seconds, snap, loop, zoom, and the keys legend. It
+  // grows the dialog downward: the waveform does not move under the eye.
+  const waveBefore = await wave.boundingBox();
   await dialog.getByRole('button', { name: 'Fine-tune', exact: true }).click();
   await startField.waitFor();
+  await sleep(350);
+  const waveAfter = await wave.boundingBox();
+  assert(waveBefore && waveAfter, 'waveform boxes');
+  assert(
+    Math.abs(waveBefore.y - waveAfter.y) < 1 && Math.abs(waveBefore.x - waveAfter.x) < 1,
+    `waveform moved when Fine-tune opened: ${waveBefore.y} to ${waveAfter.y}`,
+  );
   const snap = dialog.getByRole('switch', { name: 'Snap to silence' });
   const loop = dialog.getByRole('switch', { name: 'Loop preview' });
   assert.equal(await snap.getAttribute('aria-checked'), 'true');
@@ -284,9 +293,13 @@ try {
     'last cut preselected',
   );
   await page.screenshot({ path: join(shots, 'reference-trim-reopened.png') });
-  await page.keyboard.press('Escape');
+  // A preset clicked with the mouse keeps focus; Enter still confirms.
+  await reopened.getByRole('button', { name: /^10 s$/ }).click();
+  const recutLength = await read();
+  assert(recutLength <= 10 && recutLength >= 9.6, `10 s recut ${recutLength}`);
+  await page.keyboard.press('Enter');
   await reopened.waitFor({ state: 'hidden' });
-  await page.getByText(`${confirmedLength.toFixed(1)}s`, { exact: true }).waitFor();
+  await page.getByText(`${recutLength.toFixed(1)}s`, { exact: true }).waitFor();
 
   // 9. Cancelling a demanded trim says so.
   await page.getByRole('button', { name: 'Clear', exact: true }).click();
@@ -294,7 +307,7 @@ try {
   await page.locator('input[type="file"]').first().setInputFiles(clip);
   await openTrimmer(page);
   await page.keyboard.press('Escape');
-  await page.getByText('The clip was not kept', { exact: false }).waitFor({ timeout: 5000 });
+  await page.getByText('Clip not added', { exact: false }).waitFor({ timeout: 5000 });
   await page.getByText('Drop audio here', { exact: false }).waitFor();
 
   assert.deepEqual(errors, [], 'page errors');

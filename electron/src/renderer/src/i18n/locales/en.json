@@ -2052,11 +2052,11 @@
   "referenceTrim": {
     "title": "Choose the passage to clone",
     "description": "Pick 8 to 15 seconds where the voice sounds the way you want it. The clone copies how these seconds are spoken.",
-    "limit": "Up to {{max}} seconds can be used.",
+    "limit": "Use up to {{max}} seconds.",
     "use": "Use this passage",
     "trim": "Trim",
     "input_too_long": "{{minutes}} min is too long to open here. Use a recording under {{max}} min.",
-    "not_kept": "The clip was not kept. Pick up to {{max}} seconds of it to use it."
+    "not_kept": "Clip not added. Pick up to {{max}} seconds of it to add it."
   },
   "voice_profile": {
     "persona_export": "Export persona",
