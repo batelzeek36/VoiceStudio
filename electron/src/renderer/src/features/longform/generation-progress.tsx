@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckIcon, CircleIcon, LoaderCircleIcon, XIcon, ZapIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { longformRemaining, renderedChapterEta } from '@/lib/render-estimate-time';
+import {
+  liveRemaining,
+  longformRemaining,
+  renderedChapterEta,
+  type LiveCountdown,
+} from '@/lib/render-estimate-time';
 import type { AudiobookRenderChapter } from './longform-session';
 
 function formatElapsed(seconds: number): string {
@@ -22,11 +27,14 @@ export function GenerationProgress({
   chapters,
   assembling,
   planned = null,
+  live = null,
 }: {
   chapters: AudiobookRenderChapter[];
   assembling: boolean;
   /** Estimated seconds per chapter on this machine (render-time estimate). */
   planned?: (number | null)[] | null;
+  /** The backend's per-call countdown; preferred over the per-chapter plan. */
+  live?: LiveCountdown | null;
 }) {
   const { t } = useTranslation();
   const start = useRef(performance.now());
@@ -42,12 +50,15 @@ export function GenerationProgress({
   const elapsed = (now - start.current) / 1000;
   const statuses = chapters.map((chapter) => chapter.status);
   const open = total - completed;
-  // The measured plan re-fitted as chapters finish; without one (first render
-  // on this machine, a resume) the pace of the chapters actually rendered.
+  // The backend's countdown, re-fitted after every engine call; else the plan
+  // re-fitted as chapters finish; without either (first renders on this
+  // machine, a resume) the pace of the chapters actually rendered.
   const eta = assembling
     ? null
-    : (longformRemaining(planned, statuses, elapsed, Math.max(0, (now - lastChapterAt) / 1000)) ??
-      renderedChapterEta(statuses, elapsed));
+    : live
+      ? liveRemaining(live, now)
+      : (longformRemaining(planned, statuses, elapsed, Math.max(0, (now - lastChapterAt) / 1000)) ??
+        renderedChapterEta(statuses, elapsed));
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(performance.now()), 1000);

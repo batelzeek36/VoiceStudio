@@ -99,7 +99,7 @@ def _warmups(backend_cls, planned: list[list[render_plan.PlannedCall]], pace_of)
 
 
 def _price(engine_id: str, backend_cls, num_step, planned: list[list[render_plan.PlannedCall]],
-           pace_of) -> dict:
+           pace_of, *, detail: bool = False) -> dict:
     engine = render_timing.engine_key(engine_id, backend_cls)
     omnivoice = render_plan.uses_omnivoice_estimator(backend_cls)
     rate = render_timing.seconds_per_char(engine)
@@ -120,6 +120,7 @@ def _price(engine_id: str, backend_cls, num_step, planned: list[list[render_plan
         parts=parts,
         shape=render_warmth.call_shape(backend_cls),
         warmups=_warmups(backend_cls, planned, pace_of),
+        detail=detail,
     )
 
 
@@ -165,28 +166,44 @@ def _estimate_generate(req: RenderEstimateRequest) -> dict:
 
 def _estimate_longform(req: RenderEstimateRequest) -> dict:
     from api.routers.audiobook import (
-        _engine_num_step, _expressive_opts, _map_span_voice, _resolve_default_language,
-        _resolve_voice, plan_from_chapters,
+        _expressive_opts, _resolve_default_language, plan_from_chapters,
     )
-    from services.audiobook import normalized_spans, parse_audiobook_script
+    from services.audiobook import parse_audiobook_script
+    from services.tts_backend import active_backend_id
+
+    plan = (parse_audiobook_script(req.text or "", default_voice=req.default_voice)
+            if req.surface == "audiobook" else plan_from_chapters(req.chapters or []))
+    if _runs_remotely(req.surface):
+        return estimator.remote_estimate(engine=render_timing.clean_id(active_backend_id()),
+                                         calls=0)
+    return plan_longform(
+        plan, default_voice=req.default_voice, voice_map=req.voice_map,
+        language=_resolve_default_language(req.language, req.default_voice),
+        lexicon=req.lexicon, opts=_expressive_opts(req),
+    )
+
+
+def plan_longform(plan, *, default_voice, voice_map, language, lexicon, opts,
+                  detail: bool = False) -> dict:
+    """Plan and price a longform render (Audiobook, Stories) on this machine.
+
+    ``plan`` is the parsed :class:`services.audiobook.AudiobookPlan` and
+    ``language`` the already-resolved render language. Shared by the estimate
+    endpoint and by a running render, which asks with ``detail`` for the
+    per-call plan its live countdown follows.
+    """
+    from api.routers.audiobook import _engine_num_step, _map_span_voice, _resolve_voice
+    from services.audiobook import normalized_spans
     from services.tts_backend import active_backend_id
 
     engine_id = active_backend_id()
     backend_cls = _backend_class(engine_id)
-    opts = _expressive_opts(req)
-    plan = (parse_audiobook_script(req.text or "", default_voice=req.default_voice)
-            if req.surface == "audiobook" else plan_from_chapters(req.chapters or []))
-    if _runs_remotely(req.surface):
-        return estimator.remote_estimate(engine=render_timing.clean_id(engine_id),
-                                         calls=0)
-
-    language = _resolve_default_language(req.language, req.default_voice)
     profile_of: dict = {}
     paces: dict = {}
 
     def pace_of(token: Optional[str]) -> Optional[render_plan.VoicePace]:
         if token not in profile_of:
-            profile_of[token] = _map_span_voice(token, req.default_voice, req.voice_map)
+            profile_of[token] = _map_span_voice(token, default_voice, voice_map)
         profile_id = profile_of[token]
         if profile_id not in paces:
             voice = _resolve_voice(profile_id)
@@ -195,11 +212,12 @@ def _estimate_longform(req: RenderEstimateRequest) -> dict:
 
     planned = [
         render_plan.chapter_calls(normalized_spans(chapter.spans, language),
-                                  lexicon=req.lexicon,
+                                  lexicon=lexicon,
                                   paragraph_gap_ms=opts.paragraph_gap_ms)
         for chapter in plan.chapters
     ]
-    return _price(engine_id, backend_cls, _engine_num_step(backend_cls, opts), planned, pace_of)
+    return _price(engine_id, backend_cls, _engine_num_step(backend_cls, opts), planned,
+                  pace_of, detail=detail)
 
 
 @router.post("/render/estimate")

@@ -76,6 +76,14 @@ steps. Measured on one M1 Max (MPS, OmniVoice, 64 steps): a 66 s read took 276 s
    planned total and the calls done so far, re-fitted as calls finish, never below zero ("finishing up" instead).
    Every string through i18n, in all locales.
 
+   The longform countdown is re-fitted after every engine call, not every chapter: the render plans its calls with
+   the estimate's code, `synthesize_chapter` reports each call's position and wall time as it finishes (and each call
+   the segment cache served), and the stream sends a `progress` frame with the seconds left, the paced cost of the
+   call in flight and the pace. Pace is actual / predicted over the calls rendered so far in this render, applied from
+   the second call and clamped to 0.5x..3x; the client counts the call in flight down but never below the calls not
+   started. A one-chapter book is corrected call by call, and a machine that slows mid-render is caught within a
+   call or two. Voice cloning's `/generate` returns the take in one response and reports no sub-call progress, so its
+   countdown stays the estimate frozen at start minus the elapsed time.
 
 ## Why this works on other machines
 
@@ -122,6 +130,7 @@ Refinements made while building it, all within the decision above:
 - The calibration message reads "Estimate appears after a few renders on this machine": the threshold is three
   calls, and one short take is one call, so "after your first render" would be false after a first short take.
 - Code: `services/render_timing.py` (record), `services/render_warmth.py` (cold-call signals),
-  `services/render_fit.py` (model and recency), `services/render_plan.py` and
+  `services/render_fit.py` (model and recency), `services/render_countdown.py` and `services/longform_progress.py`
+  (the live countdown), `services/render_plan.py` and
   `services/render_estimate.py` with `api/routers/render_estimate.py` (plan and price), and the Electron renderer's
   `render-estimate-hint.tsx`, `render-estimate-inline.tsx` and `generation-progress.tsx` (show).

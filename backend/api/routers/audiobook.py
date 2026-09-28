@@ -53,6 +53,7 @@ from services.longform_render import (
 )
 from services import longform_resume  # pure (no torch) — durable resume manifest
 from services import render_timing  # render-time estimate: per-call timings
+from services import longform_progress  # render-time estimate: live countdown
 
 logger = logging.getLogger("omnivoice.audiobook")
 router = APIRouter()
@@ -688,7 +689,8 @@ async def _prepare_synth(
 
 
 def _render_chapter_cached(chapter, synth, sr, engine_id, resolve, cache_dir, lexicon=None,
-                           language=None, opts=None, voice_map=None, timing=None):
+                           language=None, opts=None, voice_map=None, timing=None,
+                           on_call=None):
     """Render one chapter, content-addressed so a re-run reuses it (resume).
 
     Returns ``(wav_path, duration_s, was_cached, seg_stats)``. Two cache
@@ -863,7 +865,7 @@ def _render_chapter_cached(chapter, synth, sr, engine_id, resolve, cache_dir, le
                              legacy_voice_sigs=legacy_voice_sigs)
     audio, dur = synthesize_chapter(spans, synth, sr, lexicon=lexicon,
                                     segment_cache=seg_cache, timing=timing,
-                                    **opts.join_kwargs())
+                                    on_call=on_call, **opts.join_kwargs())
     # Invisible provenance mark on the assembled chapter (#1169), tensor stage,
     # before the WAV lands in the cache — this single site covers every
     # longform front door (/audiobook, /longform/render [Stories],
@@ -959,8 +961,12 @@ def _remote_chapter_call(chapter, *, engine_id, default_voice, voice_map,
 
 
 async def _run_chapter(chapter, *, operation="audiobook", decision, job, default_voice, language, opts,
-                       voice_map, lexicon, cache_dir):
-    """Run one chapter through the gateway; local preparation stays lazy."""
+                       voice_map, lexicon, cache_dir, on_call=None):
+    """Run one chapter through the gateway; local preparation stays lazy.
+
+    ``on_call(position, seconds)`` hears about every engine call of a local
+    render as it finishes (the live countdown); a remote render reports none.
+    """
     from services import gpu_gateway
     from services.tts_backend import active_backend_id, get_backend_class
 
@@ -1000,7 +1006,7 @@ async def _run_chapter(chapter, *, operation="audiobook", decision, job, default
         return gpu_gateway.LocalCall(
             fn=lambda: _render_chapter_cached(
                 chapter, synth, sr, local_engine, resolve, cache_dir, lexicon,
-                language, opts, voice_map, timing=timing,
+                language, opts, voice_map, timing=timing, on_call=on_call,
             ),
             what="Audiobook chapter",
             timeout=generate_timeout_s(
@@ -1135,6 +1141,11 @@ async def _render_longform_sse(
     except Exception:  # resume durability is an enhancement; never block the render
         logger.debug("[%s] resume manifest write skipped", job_id, exc_info=True)
 
+    def _progress_line(payload: dict) -> str:
+        """A live countdown frame: streamed, never written to job history (a
+        book would add one row per engine call)."""
+        return f"data: {json.dumps(payload)}\n\n"
+
     def _emit(payload: dict) -> str:
         if job_store is not None:
             try:
@@ -1182,6 +1193,23 @@ async def _render_longform_sse(
         interrupted = False
         yield _emit({"type": "started", "job_id": job_id, "chapters": total})
 
+        # Live countdown (docs/adr/render-time-estimate.md): the per-call plan
+        # the estimate made, re-fitted after every engine call. Local renders
+        # with a measured estimate only; everything else streams as before.
+        countdown = None
+        if not decision.remote:
+            try:
+                from api.routers.render_estimate import plan_longform
+
+                countdown = longform_progress.countdown_for(await asyncio.to_thread(
+                    plan_longform, plan, default_voice=default_voice, voice_map=voice_map,
+                    language=resolved_lang, lexicon=lexicon, opts=opts, detail=True))
+            except Exception:  # noqa: BLE001 - a countdown is never worth a failed render
+                logger.debug("[%s] render countdown unavailable", job_id, exc_info=True)
+                countdown = None
+        if countdown is not None:
+            yield _progress_line(longform_progress.progress_event(countdown, 0))
+
         for i, chapter in enumerate(plan.chapters):
             # Client-disconnect cancellation (#1216): if the browser aborted the
             # request (the user hit Stop), stop scheduling further chapters
@@ -1202,13 +1230,29 @@ async def _render_longform_sse(
                 if gone:
                     interrupted = True
                     break
-            try:
-                wav_path, dur, was_cached, seg_stats = await _run_chapter(
+            def start_chapter(on_call=None, chapter=chapter):
+                return _run_chapter(
                     chapter, operation=operation, decision=decision, job=chapter_run,
                     default_voice=default_voice, language=resolved_lang,
                     opts=opts, voice_map=voice_map, lexicon=lexicon,
-                    cache_dir=cache_dir,
+                    cache_dir=cache_dir, on_call=on_call,
                 )
+
+            try:
+                if countdown is None:
+                    result = await start_chapter()
+                else:
+                    result = None
+                    steps = longform_progress.chapter_with_progress(start_chapter, countdown, i)
+                    try:
+                        async for kind, value in steps:
+                            if kind == "progress":
+                                yield _progress_line(value)
+                            else:
+                                result = value
+                    finally:
+                        await steps.aclose()
+                wav_path, dur, was_cached, seg_stats = result
             except Exception as e:  # isolate a bad chapter — keep going
                 logger.warning("[%s] chapter %d (%s) failed to render",
                                job_id, i, chapter.title, exc_info=True)
@@ -1231,6 +1275,9 @@ async def _render_longform_sse(
                              # The terminal error below carries one.
                              **build_failure(e, stage="audiobook_chapter",
                                              include_diagnostic=False)})
+                if countdown is not None:
+                    countdown.chapter_done(i)
+                    yield _progress_line(longform_progress.progress_event(countdown, i))
                 continue
             chapter_files.append(wav_path)
             dur_ms = int(round(dur * 1000))
@@ -1248,6 +1295,9 @@ async def _render_longform_sse(
                 ev["segments"] = seg_stats["total"]
                 ev["cached_segments"] = seg_stats["cached"]
             yield _emit(ev)
+            if countdown is not None:
+                countdown.chapter_done(i)
+                yield _progress_line(longform_progress.progress_event(countdown, i))
 
         route_notice = chapter_run.notice()
         if route_notice is not None:

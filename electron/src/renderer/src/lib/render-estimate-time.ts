@@ -98,6 +98,42 @@ export function renderedChapterEta(statuses: readonly string[], elapsed: number)
   return (elapsed / rendered) * left;
 }
 
+/**
+ * The backend's live countdown for a running longform render: seconds left
+ * after the latest finished call (`remaining`), the part of it that is the
+ * call now in flight (`next`), and when it arrived (`at`, performance.now()).
+ */
+export interface LiveCountdown {
+  remaining: number;
+  next: number;
+  at: number;
+}
+
+/**
+ * Seconds left now: the in-flight call counts down from its paced cost, but
+ * the total never drops below the calls that have not started yet.
+ */
+export function liveRemaining(live: LiveCountdown, nowMs: number): number {
+  const since = Math.max(0, (nowMs - live.at) / 1000);
+  const later = Math.max(0, live.remaining - live.next);
+  return later + Math.max(0, live.next - since);
+}
+
+/** A backend `progress` frame, validated; null when it is not one. */
+export function parseLiveCountdown(
+  event: Record<string, unknown>,
+  nowMs: number,
+): LiveCountdown | null {
+  const remaining = Number(event.remaining_s);
+  const next = Number(event.next_call_s);
+  if (event.type !== 'progress' || !Number.isFinite(remaining) || remaining < 0) return null;
+  return {
+    remaining,
+    next: Number.isFinite(next) && next >= 0 ? Math.min(next, remaining) : 0,
+    at: nowMs,
+  };
+}
+
 /** Seconds left of a single take planned at `planned` seconds, never below zero. */
 export function takeRemaining(planned: number | null, elapsed: number): number | null {
   if (planned === null || !Number.isFinite(planned)) return null;

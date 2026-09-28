@@ -43,3 +43,27 @@ it('ignores a plan that describes a different render', () => {
   );
   expect(screen.queryByText(/left|Finishing up/)).toBeNull();
 });
+
+it('follows the backend countdown between chapter events', () => {
+  render(
+    <GenerationProgress
+      chapters={chapters('rendering')}
+      assembling={false}
+      planned={[600]}
+      live={{ remaining: 125, next: 25, at: performance.now() }}
+    />,
+  );
+  // The per-call countdown (about 2:05), not the one-chapter plan (10:00).
+  expect(screen.getByText(/2:0[45] left/)).toBeVisible();
+});
+
+it('finishes up when the backend has nothing left for the last chapter', () => {
+  render(
+    <GenerationProgress
+      chapters={chapters('rendering')}
+      assembling={false}
+      live={{ remaining: 0, next: 0, at: performance.now() }}
+    />,
+  );
+  expect(screen.getByText(/Finishing up/)).toBeVisible();
+});

@@ -16,6 +16,7 @@ import { beginAppActivity } from '@/lib/app-activity';
 import { publicFailureFromEvent, type PublicFailure } from '@/lib/api/failure';
 import { queryClient } from '@/lib/query';
 import { refreshRenderEstimates } from '@/hooks/use-render-estimate';
+import { parseLiveCountdown, type LiveCountdown } from '@/lib/render-estimate-time';
 export type Mode = 'stories' | 'audiobook';
 export interface Character {
   id: string;
@@ -70,6 +71,8 @@ interface Session {
   stopped: boolean;
   /** A resumed render follows its saved manifest, not the draft on screen. */
   resumed: boolean;
+  /** The backend's countdown, re-fitted after every engine call; null before the first. */
+  live: LiveCountdown | null;
 }
 export const blankLongformDraft = (): Draft => ({
   projectId: null,
@@ -158,6 +161,7 @@ export const longformSession = new Store<Session>({
   chapters: [],
   stopped: false,
   resumed: false,
+  live: null,
 });
 export const useLongformSession = () => useStore(longformSession);
 /** Fences document imports that finish after a new dub replaces the Stories draft. */
@@ -242,6 +246,7 @@ export async function renderLongform(mode: Mode, resumeId?: string) {
     chapters: [],
     stopped: false,
     resumed: Boolean(resumeId),
+    live: null,
   });
   let done = false;
   let outputChapters: AudiobookRenderChapter[] = [];
@@ -320,6 +325,10 @@ export async function renderLongform(mode: Mode, resumeId?: string) {
             })),
           });
         }
+        if (event.type === 'progress') {
+          const live = parseLiveCountdown(event, performance.now());
+          if (live) patch({ live });
+        }
         if (event.type === 'assembling') patch({ stage: 'assembling' });
         if (event.type === 'stopped') {
           done = true;
@@ -352,7 +361,7 @@ export async function renderLongform(mode: Mode, resumeId?: string) {
     finishActivity();
     if (controller === current) {
       controller = null;
-      patch({ active: null, stage: '' });
+      patch({ active: null, stage: '', live: null });
     }
     // Rendered chapters recorded this machine's timings: re-ask the estimate.
     void refreshRenderEstimates(queryClient).catch(() => {});
