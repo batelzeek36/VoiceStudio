@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatRenderDuration,
+  liveRemaining,
   longformRemaining,
+  parseLiveCountdown,
   renderedChapterEta,
   roundEstimateSeconds,
   takeRemaining,
@@ -74,5 +76,31 @@ describe('fallback countdowns', () => {
     expect(takeRemaining(120, 20)).toBe(100);
     expect(takeRemaining(120, 500)).toBe(0);
     expect(takeRemaining(null, 5)).toBeNull();
+  });
+});
+
+describe('live countdown from the backend', () => {
+  const live = { remaining: 100, next: 20, at: 1_000 };
+
+  it('counts the call in flight down, never below the calls not started', () => {
+    expect(liveRemaining(live, 1_000)).toBe(100);
+    expect(liveRemaining(live, 11_000)).toBe(90);
+    expect(liveRemaining(live, 21_000)).toBe(80);
+    // The call runs long: hold at what the unstarted calls will take.
+    expect(liveRemaining(live, 61_000)).toBe(80);
+  });
+
+  it('validates progress frames', () => {
+    expect(parseLiveCountdown({ type: 'progress', remaining_s: 42.5, next_call_s: 12 }, 5)).toEqual(
+      { remaining: 42.5, next: 12, at: 5 },
+    );
+    expect(parseLiveCountdown({ type: 'progress', remaining_s: 'soon' }, 5)).toBeNull();
+    expect(parseLiveCountdown({ type: 'progress', remaining_s: -1 }, 5)).toBeNull();
+    expect(parseLiveCountdown({ type: 'chapter', remaining_s: 3 }, 5)).toBeNull();
+    // A missing or larger in-flight share is bounded by the total.
+    expect(parseLiveCountdown({ type: 'progress', remaining_s: 3 }, 5)?.next).toBe(0);
+    expect(parseLiveCountdown({ type: 'progress', remaining_s: 3, next_call_s: 9 }, 5)?.next).toBe(
+      3,
+    );
   });
 });

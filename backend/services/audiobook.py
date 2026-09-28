@@ -23,6 +23,7 @@ ingestion, the streaming synth job + UI are deferred follow-ups.
 from __future__ import annotations
 
 import json
+import time
 import zlib
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -390,6 +391,7 @@ def synthesize_chapter(
     lexicon: Optional[dict] = None,
     segment_cache: Optional["object"] = None,
     timing: Optional["object"] = None,
+    on_call: Optional[Callable[[int, Optional[float]], None]] = None,
 ):
     """Render a chapter's spans to one waveform via an injected ``synth``.
 
@@ -407,7 +409,12 @@ def synthesize_chapter(
     interrupted chapter resumes from its finished segments. Pauses are
     synthesized silence and never touch the cache.
     ``timing`` (a :mod:`services.render_timing` context) records each engine
-    call for the render-time estimate; ``None`` records nothing.
+    call for the render-time estimate; ``None`` records nothing. ``on_call``
+    (when given) is told after every engine call ``(position, wall_seconds)``,
+    and for every call the segment cache made unnecessary ``(position, None)``,
+    where ``position`` counts this chapter's calls in the order the render-time
+    planner lists them (spans, then paragraphs, then chunks); it feeds the live
+    countdown and must never raise into the render.
 
     Returns ``(audio_tensor, duration_seconds)``. torch + chunked_tts are
     imported lazily so this module stays import-light for the pure parser path.
@@ -446,6 +453,17 @@ def synthesize_chapter(
     # gets a distinct cache slot — and therefore a distinct take — instead of
     # replaying one WAV. Always computed (cheap); inert when the cache ignores it.
     occ_counts: dict = {}
+    position = 0
+
+    def report(seconds: Optional[float]) -> None:
+        nonlocal position
+        if on_call is not None:
+            try:
+                on_call(position, seconds)
+            except Exception:  # noqa: BLE001 - progress must never break a render
+                pass
+        position += 1
+
     for span, paragraphs in zip(spans, paragraphs_by_span):
         if span.text:
             occ_key = (span.voice_id, span.text, getattr(span, "speed", None))
@@ -464,9 +482,11 @@ def synthesize_chapter(
                     rendered = []
                     for c in chunks:
                         _stop_if_abandoned()
+                        started = time.perf_counter()
                         rendered.append((timing or UNTIMED).call(
                             c, span.speed, span.voice_id, synth, c, span.voice_id, span.speed))
                         _note_chunk_done()
+                        report(time.perf_counter() - started)
                     # Deliberately NOT pre-filtered (#1330). Dropping the empties
                     # here both hid them — a chapter would come back short with
                     # nothing said about it — and misaligned `rendered` from
@@ -481,6 +501,10 @@ def synthesize_chapter(
                     paragraph_gap_ms)
                 if audio is not None and segment_cache is not None:
                     trace_call("cache", segment_cache.store, span, audio, nonce=occ)
+            else:
+                for paragraph in paragraphs:
+                    for _ in split_text_into_chunks(paragraph):
+                        report(None)
             if audio is not None:
                 if pending_gap_ms > 0:
                     n = int(sample_rate * pending_gap_ms / 1000.0)

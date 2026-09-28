@@ -54,8 +54,12 @@ def remote_estimate(*, engine: str, calls: int) -> dict:
 def estimate(*, engine: str, device: str, num_step: Optional[int],
              parts: Sequence[Sequence[PlannedAudio]],
              shape: render_fit.CallShape = render_fit.PLAIN,
-             warmups: Optional[Sequence[Sequence[str]]] = None) -> dict:
-    """Price ``parts`` with the model for ``(engine, device, num_step)``."""
+             warmups: Optional[Sequence[Sequence[str]]] = None,
+             detail: bool = False) -> dict:
+    """Price ``parts`` with the model for ``(engine, device, num_step)``.
+
+    ``detail`` adds each part's ``call_seconds`` (its warm-up folded into its
+    first call), the plan a running render's live countdown follows."""
     samples = render_timing.samples_for(engine, device, num_step)
     model = render_fit.fit_model(samples, num_step, shape, now=time.time())
     warmups = list(warmups or [[] for _ in parts])
@@ -79,9 +83,11 @@ def estimate(*, engine: str, device: str, num_step: Optional[int],
     for index, part in enumerate(parts):
         seconds = low = high = 0.0
         first: Optional[float] = None
+        per_call: list[float] = []
         for audio_seconds, ref_seconds in part:
             p = model.predict(audio_seconds, ref_seconds)
             first = p.seconds if first is None else first
+            per_call.append(p.seconds)
             seconds, low, high = seconds + p.seconds, low + p.low, high + p.high
             rough = rough or p.extrapolated
         for kind in warmups[index] if index < len(warmups) else []:
@@ -90,12 +96,17 @@ def estimate(*, engine: str, device: str, num_step: Optional[int],
                 seconds, low, high = (seconds + overhead.typical, low + overhead.low,
                                       high + overhead.high)
                 warmup += overhead.typical
+                if per_call:
+                    per_call[0] += overhead.typical
             else:
                 # Signal read, cost never measured here: no number to add, so
                 # allow up to one more first call and say it is rough.
                 rough = True
                 high += first or 0.0
-        out_parts.append({"calls": len(part), "seconds": _round(seconds)})
+        entry = {"calls": len(part), "seconds": _round(seconds)}
+        if detail:
+            entry["call_seconds"] = [round(c, 2) for c in per_call]
+        out_parts.append(entry)
         totals = [totals[0] + seconds, totals[1] + low, totals[2] + high]
     return {
         **base,

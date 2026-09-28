@@ -6,6 +6,7 @@ import { GenerationProgress } from './generation-progress';
 import type { GenerateBlocker } from './generate-blocker';
 import { plannedChapterSeconds } from './longform-estimate';
 import type { AudiobookRenderChapter } from './longform-session';
+import type { LiveCountdown } from '@/lib/render-estimate-time';
 
 /** The slice of the render session this panel reads. */
 export interface GenerateSession {
@@ -17,6 +18,7 @@ export interface GenerateSession {
   stopped: boolean;
   chapters: AudiobookRenderChapter[];
   resumed?: boolean;
+  live?: LiveCountdown | null;
 }
 
 /**
@@ -76,6 +78,7 @@ export function GeneratePanel({
             chapters={session.chapters}
             assembling={session.stage === 'assembling'}
             planned={plan?.seconds ?? null}
+            live={session.live ?? null}
           />
         </div>
       )}
