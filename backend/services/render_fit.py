@@ -25,19 +25,19 @@ and measured as their own overhead, which the estimate adds only when the
 planned render will pay it. Fewer than :data:`MIN_SAMPLES` warm calls: no fit.
 
 **Recency.** A desktop's throughput drifts with what else it is doing: the
-same call took 35.7 s and, forty minutes later under heavier background load,
-51.0 s. The line keeps the shape (what length costs); the machine's current
-*pace* is a multiplier on it, taken from how the recent calls ran against the
-line: a weighted mean of their log(observed / predicted), each call weighted
-by ``2 ** -(age / 2 min)`` in wall-clock time, plus a prior of half a call at
-pace 1. Wall-clock rather than call count, because what drifts is the
-machine's load, which moves with time: after an idle hour the old evidence has
-aged out and the estimate falls back to the machine's long-run line instead of
-trusting a stale session. Two minutes because a render's calls arrive every 20
-to 60 s, so the last three to six calls decide; on the drifting Mac it cut the
-error after the slowdown from 33% to 12% (5 minutes: 16%). Recent calls that
-scatter widely widen the range. Within a running render the live countdown
-(services/render_countdown.py) corrects after every call.
+same call took 35.7 s and, minutes later under heavier background load, 51.0 s.
+The line keeps the shape (what length costs); the machine's current *pace* is
+a multiplier on it: the weighted median of the recent calls'
+log(observed / predicted), the newest call weighing 1 and each older one half
+as much per two calls (``2 ** -(rank / 2)``), with a prior of half a call at
+pace 1. By call count, not wall-clock age, because on the measured Mac the
+load persisted through an idle hour: forgetting it by age put the next render
+37% short, keeping the last calls' level put it 16% short. A median, so one
+outlier call cannot move it. Because the level persists, the range widens to
+include the long-run line once the newest call is more than 15 minutes old
+(the load may have gone either way), and recent calls that scatter widen it
+too. Within a running render the live countdown (services/render_countdown.py)
+corrects after every call.
 
 Pure math on plain floats: no database, no torch, the same answer on every OS.
 """
@@ -70,17 +70,17 @@ _EXTRAPOLATION_MARGIN = 0.10
 #: Newest cold calls per kind that set its overhead.
 _OVERHEAD_WINDOW = 10
 
-#: Recency: a call's evidence about the machine's current pace halves every
-#: this many seconds of wall-clock age (chosen on a real drifting Mac, see the
-#: module docstring and tests/test_render_fit_recency.py).
-PACE_HALF_LIFE_S = 120.0
-#: Prior weight (in calls) on "running at the long-run line": with no recent
-#: calls the pace is 1.
+#: Recency: each older call's say in the machine's current pace halves every
+#: this many calls (chosen on a real drifting Mac, see the module docstring
+#: and tests/test_render_fit_recency.py).
+PACE_HALF_LIFE_CALLS = 2.0
+#: Prior weight (in calls) on "running at the long-run line".
 _PACE_PRIOR = 0.5
-#: One call cannot move the pace by more than 2x either way.
-_PACE_CLIP = math.log(2.0)
-#: Calls older than four half-lives no longer shape the recent spread.
+#: Calls past four half-lives no longer shape the recent spread.
 _RECENT_MIN_WEIGHT = 1 / 16
+#: After this long without a call, the machine may be back at its long-run
+#: speed (or slower still): the range covers both.
+IDLE_S = 15 * 60
 
 #: omnivoice/models/omnivoice.py OmniVoiceGenerationConfig defaults.
 OMNIVOICE_CHUNK_THRESHOLD_S = 30.0
@@ -312,36 +312,34 @@ def _weighted_percentile(pairs: Sequence[tuple[float, float]], pct: float) -> fl
 
 def _recent_pace(used: Sequence[Sample], points: Sequence[tuple[float, float]], fit: Fit,
                  now: Optional[float]) -> tuple[float, Optional[float], Optional[float]]:
-    """``(pace, recent_low, recent_high)`` from the calls' age-weighted errors.
+    """``(pace, recent_low, recent_high)`` from the newest calls' errors.
 
-    ``pace`` multiplies the line: exp of the weighted mean log(observed /
-    predicted), clipped per call, shrunk toward 1 by a prior of half a call.
+    ``used`` is newest first. ``pace`` multiplies the line: exp of the
+    weighted median log(observed / predicted), weights halving every
+    :data:`PACE_HALF_LIFE_CALLS` calls, plus a prior of half a call at pace 1.
     ``recent_low`` / ``recent_high`` are the 10th / 90th percentile of the
-    recent calls' ratios to the paced line (None without recent calls), so a
-    machine that is behaving erratically right now gets a wider range.
+    recent calls' ratios to the paced line, stretched to the long-run line
+    when the newest call is older than :data:`IDLE_S`. ``now=None``: no
+    recency (pace 1, no recent spread).
     """
     if now is None:
         return 1.0, None, None
     logs: list[tuple[float, float]] = []
-    for sample, (x, y) in zip(used, points):
-        if sample.created_at is None or not (_finite_positive(x) and _finite_positive(y)):
-            continue
+    for rank, (x, y) in enumerate(p for p in points
+                                  if _finite_positive(p[0]) and _finite_positive(p[1])):
         predicted = fit.predict(x)
-        if predicted <= 0:
-            continue
-        age = max(0.0, now - float(sample.created_at))
-        weight = 2.0 ** (-age / PACE_HALF_LIFE_S)
-        logs.append((math.log(y / predicted), weight))
-    total = sum(w for _, w in logs)
-    if total <= 0:
+        if predicted > 0:
+            logs.append((math.log(y / predicted), 2.0 ** (-rank / PACE_HALF_LIFE_CALLS)))
+    if not logs:
         return 1.0, None, None
-    clipped = sum(w * max(-_PACE_CLIP, min(_PACE_CLIP, v)) for v, w in logs)
-    log_pace = clipped / (total + _PACE_PRIOR)
+    log_pace = _weighted_percentile([*logs, (0.0, _PACE_PRIOR)], 50)
+    pace = math.exp(log_pace)
     recent = [(math.exp(v - log_pace), w) for v, w in logs if w >= _RECENT_MIN_WEIGHT]
-    if not recent:
-        return math.exp(log_pace), None, None
-    return (math.exp(log_pace), _weighted_percentile(recent, 10),
-            _weighted_percentile(recent, 90))
+    low, high = _weighted_percentile(recent, 10), _weighted_percentile(recent, 90)
+    newest = next((s.created_at for s in used if s.created_at is not None), None)
+    if newest is not None and now - float(newest) > IDLE_S:
+        low, high = min(low, fit.low_ratio / pace), max(high, fit.high_ratio / pace)
+    return pace, low, high
 
 
 def fit_model(samples: Sequence[Sample], num_step: Optional[int],
@@ -357,7 +355,7 @@ def fit_model(samples: Sequence[Sample], num_step: Optional[int],
     per-pass cost ``a`` alone. ``None`` below that: cold start.
 
     ``now`` (epoch seconds) turns on recency: the machine's current pace from
-    the recent calls, and a range widened by their scatter.
+    the newest calls, and a range widened by their scatter and by idleness.
     """
     warm = [s for s in samples if not s.cold]
     cold = [s for s in samples if s.cold]
@@ -386,8 +384,8 @@ def fit_bucket(samples: Sequence[Sample], num_step: Optional[int]) -> Optional[F
 
 
 __all__ = [
-    "FIT_WINDOW", "MIN_SAMPLES", "OMNIVOICE", "PACE_HALF_LIFE_S", "PLAIN", "ROUGH_HIGH",
-    "ROUGH_LOW",
+    "FIT_WINDOW", "IDLE_S", "MIN_SAMPLES", "OMNIVOICE", "PACE_HALF_LIFE_CALLS", "PLAIN",
+    "ROUGH_HIGH", "ROUGH_LOW",
     "CallModel", "CallPrediction", "CallShape", "Fit", "Overhead", "Sample",
     "fit_bucket", "fit_line", "fit_model", "percentile",
 ]

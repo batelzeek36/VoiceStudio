@@ -57,11 +57,15 @@ steps. Measured on one M1 Max (MPS, OmniVoice, 64 steps): a 66 s read took 276 s
 
    **Recency.** A desktop's throughput drifts with its background load: on the M1 Max the same call took 35.7 s and,
    minutes later under heavier load from other work, 51.0 s. The line keeps the shape; the machine's current *pace*
-   multiplies it: the weighted mean of the recent calls' log(observed / predicted), each weighted by
-   `2 ** -(age / 2 min)` of wall-clock age, with a prior of half a call at pace 1. Wall-clock, not call count, because
-   what drifts is load, which moves with time: after an idle hour the old evidence has aged out and the estimate
-   returns to the long-run line, while during a burst of calls the newest three to six decide. Recent calls that
-   scatter widen the range (their weighted 10th to 90th percentile around the paced line).
+   multiplies it: the weighted median of the newest calls' log(observed / predicted), the newest weighing 1 and each
+   older one half as much per two calls, with a prior of half a call at pace 1. By call count, not wall-clock age:
+   the load persisted through an idle 50 minutes, and forgetting it by age (a 2-minute half-life, tried first) put
+   the next render 37 percent short where keeping the last level put it 16 percent short; a median so one outlier
+   call cannot move it. Because the level persists, the range covers the long-run line too once the newest call is
+   more than 15 minutes old (the load may have gone either way), and recent calls that scatter widen it (their
+   weighted 10th to 90th percentile around the paced line). On the 37 real calls, one call ahead: median error 29
+   percent without recency, 5 percent with it (10 percent after the slowdown), actual inside the range 24 of 28
+   times instead of 19.
 
 3. **Plan the calls.** `POST /render/estimate` takes what a render takes (surface, text or script, voice map, engine,
    steps, speed, duration, chunking) and runs the same planning code the render runs (pause markers, the longform
