@@ -990,10 +990,12 @@ async def _run_chapter(chapter, *, operation="audiobook", decision, job, default
             # non-catalogue id. Keep the canonical host/text policy available;
             # registered production engines still add their routing metadata.
             timeout_engine = None
-        # Render-time estimate: time this chapter's engine calls on this machine.
+        # Render-time estimate: time this chapter's engine calls on this machine,
+        # with each span's voice token mapped to the reference it renders with.
         timing = await asyncio.to_thread(
             render_timing.for_render, local_engine, timeout_engine,
             num_step=_engine_num_step(timeout_engine, opts), sample_rate=sr,
+            reference_of=lambda token: (resolve(token) or {}).get("ref_audio"),
         ) if timeout_engine is not None else render_timing.UNTIMED
         return gpu_gateway.LocalCall(
             fn=lambda: _render_chapter_cached(

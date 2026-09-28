@@ -1,17 +1,21 @@
 """Turn a planned render into a time estimate from this machine's own timings.
 
 docs/adr/render-time-estimate.md, parts 2 and 3. ``parts`` are the planned
-calls' audio seconds, one list per progress unit the UI can see finish (one
-per chapter for longform, one for ``/generate``), so a live countdown can
-re-fit as each unit completes.
+calls, one list per progress unit the UI can see finish (one per chapter for
+longform, one for ``/generate``); each call is ``(audio_seconds,
+ref_seconds)``. ``warmups`` lists, per part, the cold costs the render will pay
+when it reaches that part: ``load`` when the engine is not loaded right now,
+``voice`` once for each long reference whose passage is not chosen yet.
 
 Basis:
 
-* ``measured``: this engine, device and steps have at least three samples.
-* ``rough``: this engine and device have them at other steps; the fit is
-  rescaled by the steps ratio (see :func:`services.render_fit.fit_bucket`).
-* ``none``: fewer than three samples here, or the render will not run on this
-  machine. No number is better than a number that is wrong somewhere.
+* ``measured``: this engine, device and steps have at least three warm calls,
+  every planned pass lies within the measured lengths, and any cold cost the
+  render will pay has been measured here.
+* ``rough``: scaled from other steps, a planned pass longer or shorter than
+  anything measured, or a cold cost not measured yet; the range is wider.
+* ``none``: fewer than three warm calls here, or the render will not run on
+  this machine. No number is better than a number that is wrong somewhere.
 """
 from __future__ import annotations
 
@@ -24,15 +28,17 @@ REASON_COLD_START = "cold_start"
 REASON_REMOTE = "remote"
 REASON_NO_RATE = "no_rate"
 
+PlannedAudio = tuple[Optional[float], float]
+
 
 def _round(value: Optional[float]) -> Optional[float]:
     return None if value is None else round(max(0.0, float(value)), 1)
 
 
-def _none(base: dict, parts: Sequence[Sequence[Optional[float]]], reason: str) -> dict:
+def _none(base: dict, parts: Sequence[Sequence[PlannedAudio]], reason: str) -> dict:
     return {
         **base, "basis": "none", "reason": reason,
-        "seconds": None, "low": None, "high": None,
+        "seconds": None, "low": None, "high": None, "warmup_seconds": None,
         "parts": [{"calls": len(part), "seconds": None} for part in parts],
     }
 
@@ -45,33 +51,60 @@ def remote_estimate(*, engine: str, calls: int) -> dict:
 
 
 def estimate(*, engine: str, device: str, num_step: Optional[int],
-             parts: Sequence[Sequence[Optional[float]]]) -> dict:
-    """Price ``parts`` with the fit for ``(engine, device, num_step)``."""
+             parts: Sequence[Sequence[PlannedAudio]],
+             shape: render_fit.CallShape = render_fit.PLAIN,
+             warmups: Optional[Sequence[Sequence[str]]] = None) -> dict:
+    """Price ``parts`` with the model for ``(engine, device, num_step)``."""
     samples = render_timing.samples_for(engine, device, num_step)
-    fit = render_fit.fit_bucket(samples, num_step)
+    model = render_fit.fit_model(samples, num_step, shape)
+    warmups = list(warmups or [[] for _ in parts])
     calls = sum(len(part) for part in parts)
-    known = all(x is not None for part in parts for x in part)
-    audio = sum(x for part in parts for x in part if x is not None) if known else None
+    known = all(audio is not None for part in parts for audio, _ in part)
+    audio = sum(a for part in parts for a, _ in part if a is not None) if known else None
     base = {
         "engine": engine, "device": device, "num_step": num_step, "calls": calls,
         "audio_seconds": _round(audio),
-        "samples": fit.samples if fit is not None else len(samples),
+        "samples": model.samples if model is not None
+        else sum(1 for s in samples if not s.cold),
     }
-    if fit is None:
+    if model is None:
         return _none(base, parts, REASON_COLD_START)
     if not known:
         return _none(base, parts, REASON_NO_RATE)
-    part_seconds = [sum(fit.predict(x) for x in part) for part in parts]
-    total = sum(part_seconds)
+    rough = model.rough
+    totals = [0.0, 0.0, 0.0]
+    warmup = 0.0
+    out_parts = []
+    for index, part in enumerate(parts):
+        seconds = low = high = 0.0
+        first: Optional[float] = None
+        for audio_seconds, ref_seconds in part:
+            p = model.predict(audio_seconds, ref_seconds)
+            first = p.seconds if first is None else first
+            seconds, low, high = seconds + p.seconds, low + p.low, high + p.high
+            rough = rough or p.extrapolated
+        for kind in warmups[index] if index < len(warmups) else []:
+            overhead = model.overheads.get(kind)
+            if overhead is not None:
+                seconds, low, high = (seconds + overhead.typical, low + overhead.low,
+                                      high + overhead.high)
+                warmup += overhead.typical
+            else:
+                # Signal read, cost never measured here: no number to add, so
+                # allow up to one more first call and say it is rough.
+                rough = True
+                high += first or 0.0
+        out_parts.append({"calls": len(part), "seconds": _round(seconds)})
+        totals = [totals[0] + seconds, totals[1] + low, totals[2] + high]
     return {
         **base,
-        "basis": "rough" if fit.rough else "measured",
+        "basis": "rough" if rough else "measured",
         "reason": None,
-        "seconds": _round(total),
-        "low": _round(total * fit.low_ratio),
-        "high": _round(total * fit.high_ratio),
-        "parts": [{"calls": len(part), "seconds": _round(sec)}
-                  for part, sec in zip(parts, part_seconds)],
+        "seconds": _round(totals[0]),
+        "low": _round(totals[1]),
+        "high": _round(totals[2]),
+        "warmup_seconds": _round(warmup),
+        "parts": out_parts,
     }
 
 

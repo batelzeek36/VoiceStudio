@@ -3,8 +3,9 @@
 docs/adr/render-time-estimate.md. Every completed synthesis call on the render
 surfaces (generate, audiobook, longform, preview) adds one ``render_timings``
 row: engine, resolved device class, unmasking steps, characters, audio seconds
-produced, wall seconds and speed. Numbers and identifiers only, the same rule as
-``core.render_trace``: no text, no voice, no path. The rows never leave the
+produced, wall seconds, speed, the reference audio's length and whether the call
+was cold (services/render_warmth.py). Numbers and identifiers only, the same
+rule as ``core.render_trace``: no text, no voice, no path. The rows never leave the
 machine (not analytics, not the diagnostic bundle) and are capped per bucket.
 
 Each surface already routes its engine call through
@@ -22,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Optional, Union
 
 from core.render_trace import call as trace_call
+from services import render_warmth
 from services.render_fit import FIT_WINDOW, Sample
 
 logger = logging.getLogger("omnivoice.render_timing")
@@ -146,7 +148,8 @@ def _insert(row: tuple) -> None:
     try:
         conn.execute(
             "INSERT INTO render_timings (engine, device, num_step, text_chars, "
-            "audio_seconds, wall_seconds, speed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "audio_seconds, wall_seconds, speed, ref_seconds, cold, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             row,
         )
         engine, device, num_step = row[0], row[1], row[2]
@@ -166,8 +169,17 @@ def _insert(row: tuple) -> None:
         conn.close()
 
 
+def _finite_or_none(value: Any) -> Optional[float]:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) and v > 0 else None
+
+
 def record(engine: str, device: str, num_step: Optional[int], text_chars: int,
-           audio_seconds: float, wall_seconds: float, speed: Optional[float] = None) -> bool:
+           audio_seconds: float, wall_seconds: float, speed: Optional[float] = None,
+           ref_seconds: Optional[float] = None, cold: Optional[str] = None) -> bool:
     """Store one completed call. Returns False (and stores nothing) for a call
     that produced no audio or carries a non-finite number. Never raises."""
     try:
@@ -177,10 +189,10 @@ def record(engine: str, device: str, num_step: Optional[int], text_chars: int,
             return False
         if not all(math.isfinite(v) and v > 0 for v in values):
             return False
-        spd = float(speed) if speed not in (None, 0) else None
-        if spd is not None and not (math.isfinite(spd) and spd > 0):
-            spd = None
-        row = (engine, device, num_step, int(text_chars), values[0], values[1], spd, time.time())
+        spd = _finite_or_none(speed)
+        kind = cold if cold in (render_warmth.LOAD, render_warmth.VOICE) else None
+        row = (engine, device, num_step, int(text_chars), values[0], values[1], spd,
+               _finite_or_none(ref_seconds), kind, time.time())
         try:
             _insert(row)
         except Exception as exc:  # noqa: BLE001
@@ -205,27 +217,52 @@ class SynthesisTiming:
     device: str
     num_step: Optional[int]
     sample_rate: SampleRate
+    backend_cls: Any = None
+    #: The loaded model or engine instance the calls run on; a call on one that
+    #: has not finished a call yet is cold (render_warmth). None: not tracked.
+    runtime: Any = None
+    #: Maps the ``reference`` a call site passes (a longform voice token) to
+    #: the reference file; None when call sites pass the path itself.
+    reference_of: Optional[Callable[[Any], Optional[str]]] = None
 
     def _rate(self) -> float:
         rate = self.sample_rate() if callable(self.sample_rate) else self.sample_rate
         return float(rate)
 
-    def call(self, text: str, speed: Optional[float], fn: Callable, /, *args, **kwargs):
+    def _reference_path(self, reference: Any) -> Optional[str]:
+        if self.reference_of is not None:
+            reference = self.reference_of(reference)
+        return reference if isinstance(reference, str) and reference else None
+
+    def call(self, text: str, speed: Optional[float], reference: Any, fn: Callable,
+             /, *args, **kwargs):
         """``trace_call("synthesis", fn, ...)``, recording the call once it succeeds.
 
-        ``text`` is only counted (its length), never stored. The sample rate is
-        read after the call because lazily loading engines report their real
+        ``text`` is only counted (its length), never stored; ``reference`` only
+        measured (its length). Whether the call is cold is read before it runs:
+        the call itself warms the engine and chooses the passage. The sample
+        rate is read after it, because lazily loading engines report their real
         rate only once their weights are up.
         """
+        ref_path = None
+        cold = None
+        try:
+            ref_path = self._reference_path(reference)
+            cold = render_warmth.cold_kind(self.backend_cls, self.runtime, ref_path)
+        except Exception:  # noqa: BLE001
+            logger.debug("render timing context unavailable", exc_info=True)
         start = time.perf_counter()
         out = trace_call("synthesis", fn, *args, **kwargs)
         wall = time.perf_counter() - start
         try:
+            render_warmth.mark_warm(self.runtime)
             samples = _sample_count(out)
             rate = self._rate()
             if samples > 0 and rate > 0:
+                ref_seconds = render_warmth.effective_reference_seconds(
+                    self.backend_cls, render_warmth.reference_seconds(ref_path))
                 record(self.engine, self.device, self.num_step, len(text or ""),
-                       samples / rate, wall, speed)
+                       samples / rate, wall, speed, ref_seconds, cold)
         except Exception:  # noqa: BLE001
             logger.debug("render timing not recorded", exc_info=True)
         return out
@@ -234,7 +271,8 @@ class SynthesisTiming:
 class _Untimed:
     """The same call with nothing recorded (paths outside the render surfaces)."""
 
-    def call(self, text: str, speed: Optional[float], fn: Callable, /, *args, **kwargs):
+    def call(self, text: str, speed: Optional[float], reference: Any, fn: Callable,
+             /, *args, **kwargs):
         return trace_call("synthesis", fn, *args, **kwargs)
 
 
@@ -243,9 +281,11 @@ Timing = Union[SynthesisTiming, _Untimed]
 
 
 def for_render(engine_id: str, backend_cls: Any, *, num_step: Any,
-               sample_rate: SampleRate) -> Timing:
+               sample_rate: SampleRate,
+               reference_of: Optional[Callable[[Any], Optional[str]]] = None) -> Timing:
     """The timing context for one local render; :data:`UNTIMED` if it cannot
-    be resolved (never raises, so it can sit in front of any render)."""
+    be resolved (never raises, so it can sit in front of any render). Call it
+    after the engine is loaded, so it sees the runtime the render will use."""
     try:
         engine = engine_key(engine_id, backend_cls)
         if not engine:
@@ -255,6 +295,9 @@ def for_render(engine_id: str, backend_cls: Any, *, num_step: Any,
             device=device_class(backend_cls),
             num_step=timing_steps(backend_cls, num_step),
             sample_rate=sample_rate,
+            backend_cls=backend_cls,
+            runtime=render_warmth.live_runtime(backend_cls),
+            reference_of=reference_of,
         )
     except Exception:  # noqa: BLE001
         logger.debug("render timing context unavailable", exc_info=True)
@@ -266,10 +309,12 @@ def for_render(engine_id: str, backend_cls: Any, *, num_step: Any,
 
 def samples_for(engine: str, device: str, num_step: Optional[int]) -> list[Sample]:
     """Newest samples for this engine and device, newest first: the whole
-    newest :data:`FIT_WINDOW` plus this steps bucket's own newest window."""
+    newest :data:`FIT_WINDOW` plus this steps bucket's own newest window, cold
+    calls included (the fit keeps them out of the line and measures them)."""
     conn = _connect()
     try:
-        cols = "SELECT id, audio_seconds, wall_seconds, num_step FROM render_timings "
+        cols = ("SELECT id, audio_seconds, wall_seconds, num_step, ref_seconds, cold "
+                "FROM render_timings ")
         rows = conn.execute(
             cols + "WHERE engine = ? AND device = ? ORDER BY id DESC LIMIT ?",
             (engine, device, FIT_WINDOW),
@@ -285,7 +330,8 @@ def samples_for(engine: str, device: str, num_step: Optional[int]) -> list[Sampl
     finally:
         conn.close()
     unique = {row[0]: row for row in rows}
-    return [Sample(audio_seconds=r[1], wall_seconds=r[2], num_step=r[3])
+    return [Sample(audio_seconds=r[1], wall_seconds=r[2], num_step=r[3],
+                   ref_seconds=r[4] or 0.0, cold=r[5] or None)
             for _, r in sorted(unique.items(), key=lambda item: item[0], reverse=True)]
 
 

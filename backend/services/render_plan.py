@@ -52,6 +52,8 @@ class VoicePace:
     has_reference: bool = False
     ref_text: Optional[str] = None
     ref_seconds: Optional[float] = None
+    #: The reference file, when it is one on disk (never sent anywhere).
+    path: Optional[str] = None
 
     @property
     def known(self) -> bool:

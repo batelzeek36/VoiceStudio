@@ -18,7 +18,7 @@ from pydantic import Field
 
 from api.routers.audiobook import ExpressiveMixin, LongformChapter
 from services import render_estimate as estimator
-from services import render_plan, render_timing
+from services import render_plan, render_timing, render_warmth
 
 router = APIRouter()
 logger = logging.getLogger("omnivoice.render_estimate")
@@ -72,13 +72,30 @@ def _runs_remotely(surface: str) -> bool:
 def _pace(ref_audio: Optional[str], ref_text: Optional[str],
           ref_seconds: Optional[float] = None) -> render_plan.VoicePace:
     if ref_audio and ref_seconds is None:
-        from services.tts_backend import reference_duration_s
-
-        ref_seconds = reference_duration_s(ref_audio)
+        ref_seconds = render_warmth.reference_seconds(ref_audio)
     return render_plan.VoicePace(
         has_reference=bool(ref_audio) or ref_seconds is not None,
-        ref_text=ref_text, ref_seconds=ref_seconds,
+        ref_text=ref_text, ref_seconds=ref_seconds, path=ref_audio,
     )
+
+
+def _warmups(backend_cls, planned: list[list[render_plan.PlannedCall]], pace_of) -> list[list[str]]:
+    """The cold costs the render will pay, per part: loading the engine before
+    the first call when it is not loaded now, and ranking a long reference's
+    passage before that voice's first call (services/render_warmth.py)."""
+    warmups: list[list[str]] = [[] for _ in planned]
+    if planned and not render_warmth.engine_is_warm(backend_cls):
+        warmups[0].append(render_warmth.LOAD)
+    seen: set = set()
+    for index, part in enumerate(planned):
+        for call in part:
+            pace = pace_of(call.voice)
+            path = pace.path if pace is not None else None
+            if path and path not in seen:
+                seen.add(path)
+                if render_warmth.voice_needs_passage(backend_cls, path):
+                    warmups[index].append(render_warmth.VOICE)
+    return warmups
 
 
 def _price(engine_id: str, backend_cls, num_step, planned: list[list[render_plan.PlannedCall]],
@@ -86,14 +103,23 @@ def _price(engine_id: str, backend_cls, num_step, planned: list[list[render_plan
     engine = render_timing.engine_key(engine_id, backend_cls)
     omnivoice = render_plan.uses_omnivoice_estimator(backend_cls)
     rate = render_timing.seconds_per_char(engine)
-    parts = [[render_plan.call_audio_seconds(call, omnivoice=omnivoice, pace_of=pace_of,
-                                             seconds_per_char=rate) for call in part]
+
+    def ref_seconds(call: render_plan.PlannedCall) -> float:
+        pace = pace_of(call.voice)
+        return render_warmth.effective_reference_seconds(
+            backend_cls, pace.ref_seconds if pace is not None else None)
+
+    parts = [[(render_plan.call_audio_seconds(call, omnivoice=omnivoice, pace_of=pace_of,
+                                              seconds_per_char=rate), ref_seconds(call))
+              for call in part]
              for part in planned]
     return estimator.estimate(
         engine=engine,
         device=render_timing.device_class(backend_cls),
         num_step=render_timing.timing_steps(backend_cls, num_step),
         parts=parts,
+        shape=render_warmth.call_shape(backend_cls),
+        warmups=_warmups(backend_cls, planned, pace_of),
     )
 
 
@@ -181,9 +207,11 @@ def render_estimate(req: RenderEstimateRequest) -> dict:
     """Estimate a render's wall time from this machine's measured speed.
 
     Response: ``seconds``, ``low``, ``high`` (``None`` unless measured or
-    rough), ``calls``, ``samples``, ``basis`` (``measured`` | ``rough`` |
-    ``none``), ``reason`` (why ``none``: ``cold_start``, ``remote`` or
-    ``no_rate``), ``audio_seconds``, the ``engine`` / ``device`` /
+    rough), ``calls``, ``samples`` (warm calls the model is fitted on),
+    ``basis`` (``measured`` | ``rough`` | ``none``), ``reason`` (why
+    ``none``: ``cold_start``, ``remote`` or ``no_rate``), ``audio_seconds``,
+    ``warmup_seconds`` (measured cold-start cost included: an engine load, a
+    long reference's first passage choice), the ``engine`` / ``device`` /
     ``num_step`` bucket, and ``parts``: calls and seconds per chapter (one
     part for ``generate``) for the live countdown.
     """

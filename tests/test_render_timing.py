@@ -51,7 +51,7 @@ def _timing(engine="omnivoice", device="mps", num_step=16, sample_rate=1000):
 
 def test_a_successful_call_records_numbers_only(timing_db):
     engine = _Engine(samples=2500)
-    out = _timing().call("A private sentence.", 1.25, engine.generate,
+    out = _timing().call("A private sentence.", 1.25, None, engine.generate,
                          "A private sentence.", speed=1.25)
     assert out.shape[-1] == 2500
     row, = _rows(timing_db)
@@ -64,7 +64,8 @@ def test_a_successful_call_records_numbers_only(timing_db):
     assert "private" not in json.dumps(row)
     columns = set(row)
     assert columns == {"id", "engine", "device", "num_step", "text_chars", "audio_seconds",
-                       "wall_seconds", "speed", "created_at"}
+                       "wall_seconds", "speed", "ref_seconds", "cold", "created_at"}
+    assert row["ref_seconds"] is None and row["cold"] is None
 
 
 def test_failed_and_empty_calls_record_nothing(timing_db):
@@ -72,8 +73,8 @@ def test_failed_and_empty_calls_record_nothing(timing_db):
         raise RuntimeError("engine fell over")
 
     with pytest.raises(RuntimeError):
-        _timing().call("text", None, boom)
-    _timing().call("text", None, _Engine(samples=0).generate, "text")
+        _timing().call("text", None, None, boom)
+    _timing().call("text", None, None, _Engine(samples=0).generate, "text")
     assert _rows(timing_db) == []
 
 
@@ -82,7 +83,7 @@ def test_list_outputs_and_lazy_sample_rates(timing_db):
     rate = {"sr": 8000}
     timing = _timing(sample_rate=lambda: rate["sr"])
     rate["sr"] = 24000
-    timing.call("text", None, lambda: [torch.zeros(1, 48000)])
+    timing.call("text", None, None, lambda: [torch.zeros(1, 48000)])
     assert _rows(timing_db)[0]["audio_seconds"] == pytest.approx(2.0)
 
 
@@ -92,7 +93,7 @@ def test_a_broken_database_never_breaks_the_render(monkeypatch):
 
     monkeypatch.setattr(core_db, "get_db", broken)
     engine = _Engine()
-    assert _timing().call("text", None, engine.generate, "text").shape[-1] == 500
+    assert _timing().call("text", None, None, engine.generate, "text").shape[-1] == 500
     assert render_timing.record("omnivoice", "cpu", None, 4, 1.0, 1.0) is False
 
 
@@ -261,3 +262,126 @@ def test_untimed_paths_record_nothing(timing_db):
     synthesize_chapter([Span(voice_id=None, text="One line.")],
                        lambda *a: torch.zeros(1, 1000), 1000, crossfade_ms=0)
     assert _rows(timing_db) == []
+
+
+# ── Cold calls: flagged from the engine's real state ──────────────────────────
+
+
+@pytest.fixture
+def fresh_warmth():
+    from services import render_warmth
+
+    render_warmth._reset_for_tests()
+    yield render_warmth
+    render_warmth._reset_for_tests()
+
+
+class _Proc:
+    def __init__(self):
+        self.code = None
+
+    def poll(self):
+        return self.code
+
+
+def _sidecar_engine():
+    """A stand-in for a subprocess engine: its sidecar is ``_proc``."""
+    from services.tts_backend import TTSBackend
+
+    class Sidecar(TTSBackend):
+        id = "sidecar-test"
+        sample_rate = 1000
+        supported_languages = ["multi"]
+
+        def __init__(self):
+            self._proc = None
+
+        @classmethod
+        def is_available(cls):
+            return True, "ready"
+
+        def generate(self, text, **kwargs):
+            if self._proc is None:
+                self._proc = _Proc()  # spawns and loads on the first synthesize
+            return torch.zeros(1, 1000)
+
+    return Sidecar
+
+
+def test_first_call_on_a_fresh_sidecar_is_cold_then_warm(timing_db, fresh_warmth):
+    cls = _sidecar_engine()
+    engine = cls()
+    timing = render_timing.SynthesisTiming("sidecar-test", "mps", None, 1000,
+                                           backend_cls=cls, runtime=engine)
+    for _ in range(2):
+        timing.call("text", None, None, engine.generate, "text")
+    assert [r["cold"] for r in _rows(timing_db)] == ["load", None]
+    assert fresh_warmth.is_warm(engine)
+
+
+def test_a_respawned_or_dead_sidecar_is_cold_again(timing_db, fresh_warmth):
+    cls = _sidecar_engine()
+    engine = cls()
+    timing = render_timing.SynthesisTiming("sidecar-test", "mps", None, 1000,
+                                           backend_cls=cls, runtime=engine)
+    timing.call("text", None, None, engine.generate, "text")
+    engine._proc.code = 0  # reaped for idleness / crashed
+    assert not fresh_warmth.is_warm(engine)
+    engine._proc = None
+    timing.call("text", None, None, engine.generate, "text")
+    assert [r["cold"] for r in _rows(timing_db)] == ["load", "load"]
+
+
+def test_a_reloaded_native_model_is_cold(timing_db, fresh_warmth):
+    class Model:
+        pass
+
+    first, second = Model(), Model()
+    for model in (first, first, second):
+        render_timing.SynthesisTiming("omnivoice", "cuda", 16, 1000, runtime=model).call(
+            "text", None, None, lambda: torch.zeros(1, 1000))
+    assert [r["cold"] for r in _rows(timing_db)] == ["load", None, "load"]
+
+
+def test_first_call_on_an_unranked_long_reference_is_voice_cold(
+        timing_db, fresh_warmth, tmp_path, monkeypatch):
+    import numpy as np
+    import soundfile as sf
+    from services import tts_backend
+
+    long_ref = tmp_path / "long.wav"
+    sf.write(long_ref, np.zeros(24000 * 40, dtype=np.float32), 24000)
+    short_ref = tmp_path / "short.wav"
+    sf.write(short_ref, np.zeros(24000 * 9, dtype=np.float32), 24000)
+    chosen = set()
+    monkeypatch.setattr(tts_backend, "_recall_passage",
+                        lambda path: (0, "words") if path in chosen else None)
+    timing = render_timing.SynthesisTiming("omnivoice", "cuda", 16, 1000,
+                                           backend_cls=tts_backend.OmniVoiceBackend)
+
+    def synth(ref):
+        chosen.add(ref)  # the call ranks and remembers the passage
+        return torch.zeros(1, 1000)
+
+    for ref in (str(long_ref), str(long_ref), str(short_ref)):
+        timing.call("text", None, ref, synth, ref)
+    rows = _rows(timing_db)
+    assert [r["cold"] for r in rows] == ["voice", None, None]
+    # A long reference is conditioned on its 15 s window; a short one whole.
+    assert [r["ref_seconds"] for r in rows] == [15.0, 15.0, pytest.approx(9.0)]
+
+
+def test_longform_voice_tokens_map_to_their_reference(timing_db, fresh_warmth, tmp_path):
+    import numpy as np
+    import soundfile as sf
+    from services.audiobook import Span, synthesize_chapter
+    from services.tts_backend import OmniVoiceBackend
+
+    ref = tmp_path / "mara.wav"
+    sf.write(ref, np.zeros(24000 * 12, dtype=np.float32), 24000)
+    timing = render_timing.SynthesisTiming(
+        "omnivoice", "cuda", 32, 1000, backend_cls=OmniVoiceBackend,
+        reference_of=lambda token: str(ref) if token == "Mara" else None)
+    synthesize_chapter([Span(voice_id="Mara", text="Hello."), Span(voice_id=None, text="Hi.")],
+                       lambda *a: torch.zeros(1, 1000), 1000, crossfade_ms=0, timing=timing)
+    assert [r["ref_seconds"] for r in _rows(timing_db)] == [pytest.approx(12.0), None]
