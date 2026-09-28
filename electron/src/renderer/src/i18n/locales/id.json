@@ -1959,7 +1959,28 @@
     "decode_failed": "Dekode gagal: {{message}}",
     "playback_failed": "Pemutaran gagal: {{message}}",
     "audio_load_failed": "Gagal memuat audio",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Panjang",
+    "preset_seconds": "{{seconds}} dtk",
+    "snap_label": "Jepret ke jeda",
+    "readout": "{{start}} – {{end}} · {{length}} dtk",
+    "fit_best": "Panjang yang pas",
+    "fit_ok": "{{min}}–{{max}} dtk paling baik untuk kloning",
+    "fit_short": "Kurang dari {{seconds}} dtk: tambahkan lebih banyak ucapan",
+    "fit_long": "Lebih dari {{max}} dtk: perpendek",
+    "hint_drag": "Seret pada bentuk gelombang untuk memilih",
+    "hint_play": "putar",
+    "hint_length": "panjang",
+    "hint_use": "gunakan",
+    "hint_cancel": "batal"
+  },
+  "referenceTrim": {
+    "title": "Pilih bagian yang akan dikloning",
+    "description": "Suara meniru cara bagian ini diucapkan. Pilih 8–15 dtk dari satu bagian yang bersih.",
+    "limit": "Maksimal {{max}} dtk: mesin mencocokkan transkrip dengan seluruh klip, jadi klip yang lebih panjang ditolak.",
+    "use": "Gunakan bagian ini",
+    "trim": "Pangkas",
+    "input_too_long": "{{minutes}} mnt terlalu panjang untuk dibuka di sini. Gunakan rekaman di bawah {{max}} mnt."
   },
   "voice_profile": {
     "persona_export": "Ekspor kepribadian",

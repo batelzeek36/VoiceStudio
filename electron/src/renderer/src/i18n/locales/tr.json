@@ -1959,7 +1959,28 @@
     "decode_failed": "Kod çözme başarısız oldu: {{message}}",
     "playback_failed": "Oynatma başarısız oldu: {{message}}",
     "audio_load_failed": "Ses yüklemesi başarısız oldu",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Uzunluk",
+    "preset_seconds": "{{seconds}} sn",
+    "snap_label": "Sessizliğe hizala",
+    "readout": "{{start}} – {{end}} · {{length}} sn",
+    "fit_best": "İyi uzunluk",
+    "fit_ok": "{{min}}–{{max}} sn en iyi klonlanır",
+    "fit_short": "{{seconds}} sn altında: daha fazla konuşma ekleyin",
+    "fit_long": "{{max}} sn üstünde: kısaltın",
+    "hint_drag": "Seçmek için dalga formu üzerinde sürükleyin",
+    "hint_play": "oynat",
+    "hint_length": "uzunluk",
+    "hint_use": "kullan",
+    "hint_cancel": "iptal"
+  },
+  "referenceTrim": {
+    "title": "Klonlanacak bölümü seçin",
+    "description": "Ses, bu bölümün nasıl söylendiğini kopyalar. Temiz bir bölümden 8–15 sn seçin.",
+    "limit": "En fazla {{max}} sn: motor transkripti tüm klip ile eşleştirir, bu yüzden daha uzun klipler reddedilir.",
+    "use": "Bu bölümü kullan",
+    "trim": "Kırp",
+    "input_too_long": "{{minutes}} dk burada açmak için çok uzun. {{max}} dk altında bir kayıt kullanın."
   },
   "voice_profile": {
     "persona_export": "Kişiyi dışa aktar",

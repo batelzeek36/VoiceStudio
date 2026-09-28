@@ -1959,7 +1959,28 @@
     "decode_failed": "Decodering mislukt: {{message}}",
     "playback_failed": "Afspelen mislukt: {{message}}",
     "audio_load_failed": "Audio laden mislukt",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Lengte",
+    "preset_seconds": "{{seconds}} s",
+    "snap_label": "Uitlijnen op stiltes",
+    "readout": "{{start}} – {{end}} · {{length}} s",
+    "fit_best": "Goede lengte",
+    "fit_ok": "{{min}}–{{max}} s klonen het best",
+    "fit_short": "Korter dan {{seconds}} s: voeg meer spraak toe",
+    "fit_long": "Langer dan {{max}} s: kort het in",
+    "hint_drag": "Sleep over de golfvorm om te selecteren",
+    "hint_play": "afspelen",
+    "hint_length": "lengte",
+    "hint_use": "gebruiken",
+    "hint_cancel": "annuleren"
+  },
+  "referenceTrim": {
+    "title": "Kies het fragment om te klonen",
+    "description": "De stem neemt over hoe dit stuk wordt uitgesproken. Kies 8–15 s van één schoon fragment.",
+    "limit": "Maximaal {{max}} s: de engine legt de transcriptie naast de hele clip, dus langere clips worden geweigerd.",
+    "use": "Dit fragment gebruiken",
+    "trim": "Bijsnijden",
+    "input_too_long": "{{minutes}} min is te lang om hier te openen. Gebruik een opname korter dan {{max}} min."
   },
   "voice_profile": {
     "persona_export": "Persona exporteren",

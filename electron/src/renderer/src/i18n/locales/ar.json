@@ -1967,7 +1967,28 @@
     "decode_failed": "فشل فك التشفير: {{message}}",
     "playback_failed": "فشل التشغيل: {{message}}",
     "audio_load_failed": "فشل تحميل الصوت",
-    "unit_seconds": "ق"
+    "unit_seconds": "ق",
+    "presets_label": "الطول",
+    "preset_seconds": "{{seconds}} ث",
+    "snap_label": "محاذاة إلى الصمت",
+    "readout": "{{start}} – {{end}} · {{length}} ث",
+    "fit_best": "طول مناسب",
+    "fit_ok": "{{min}}–{{max}} ث تُستنسخ بشكل أفضل",
+    "fit_short": "أقل من {{seconds}} ث: أضف مزيدًا من الكلام",
+    "fit_long": "أكثر من {{max}} ث: اختصره",
+    "hint_drag": "اسحب على الموجة الصوتية للتحديد",
+    "hint_play": "تشغيل",
+    "hint_length": "الطول",
+    "hint_use": "استخدام",
+    "hint_cancel": "إلغاء"
+  },
+  "referenceTrim": {
+    "title": "اختر المقطع المراد استنساخه",
+    "description": "يقلّد الصوت طريقة نطق هذا الجزء. اختر 8–15 ث من مقطع واحد نظيف.",
+    "limit": "الحد الأقصى {{max}} ث: يطابق المحرك النص مع المقطع كاملًا، لذلك تُرفض المقاطع الأطول.",
+    "use": "استخدام هذا المقطع",
+    "trim": "قص",
+    "input_too_long": "{{minutes}} دقيقة طويلة جدًا لفتحها هنا. استخدم تسجيلًا أقصر من {{max}} دقيقة."
   },
   "voice_profile": {
     "persona_export": "تصدير الشخصية",

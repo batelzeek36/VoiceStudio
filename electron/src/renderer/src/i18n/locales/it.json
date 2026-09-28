@@ -1961,7 +1961,28 @@
     "decode_failed": "Decodifica non riuscita: {{message}}",
     "playback_failed": "Riproduzione non riuscita: {{message}}",
     "audio_load_failed": "Caricamento dell'audio non riuscito",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Durata",
+    "preset_seconds": "{{seconds}} s",
+    "snap_label": "Aggancia ai silenzi",
+    "readout": "{{start}} – {{end}} · {{length}} s",
+    "fit_best": "Buona durata",
+    "fit_ok": "{{min}}–{{max}} s clonano meglio",
+    "fit_short": "Meno di {{seconds}} s: aggiungi più parlato",
+    "fit_long": "Oltre {{max}} s: accorcia",
+    "hint_drag": "Trascina sulla forma d'onda per selezionare",
+    "hint_play": "riproduci",
+    "hint_length": "durata",
+    "hint_use": "usa",
+    "hint_cancel": "annulla"
+  },
+  "referenceTrim": {
+    "title": "Scegli il passaggio da clonare",
+    "description": "La voce copia il modo in cui è detto questo tratto. Scegli 8–15 s di un passaggio pulito.",
+    "limit": "Massimo {{max}} s: il motore allinea la trascrizione all’intera clip, quindi le clip più lunghe vengono rifiutate.",
+    "use": "Usa questo passaggio",
+    "trim": "Ritaglia",
+    "input_too_long": "{{minutes}} min sono troppi per aprirli qui. Usa una registrazione sotto i {{max}} min."
   },
   "voice_profile": {
     "persona_export": "Esporta personaggio",

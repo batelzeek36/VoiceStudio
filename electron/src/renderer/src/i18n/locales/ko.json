@@ -1959,7 +1959,28 @@
     "decode_failed": "디코딩 실패: {{message}}",
     "playback_failed": "재생 실패: {{message}}",
     "audio_load_failed": "오디오 로드 실패",
-    "unit_seconds": "초"
+    "unit_seconds": "초",
+    "presets_label": "길이",
+    "preset_seconds": "{{seconds}}초",
+    "snap_label": "무음에 맞추기",
+    "readout": "{{start}} – {{end}} · {{length}}초",
+    "fit_best": "적당한 길이",
+    "fit_ok": "{{min}}~{{max}}초가 가장 잘 복제됩니다",
+    "fit_short": "{{seconds}}초 미만: 말소리를 더 담으세요",
+    "fit_long": "{{max}}초 초과: 줄이세요",
+    "hint_drag": "파형을 드래그해 선택",
+    "hint_play": "재생",
+    "hint_length": "길이",
+    "hint_use": "사용",
+    "hint_cancel": "취소"
+  },
+  "referenceTrim": {
+    "title": "복제할 구간 선택",
+    "description": "목소리는 이 구간의 말투를 그대로 따릅니다. 깨끗한 한 구간에서 8~15초를 고르세요.",
+    "limit": "최대 {{max}}초: 엔진이 전사 텍스트를 클립 전체와 맞추므로 더 긴 클립은 거부됩니다.",
+    "use": "이 구간 사용",
+    "trim": "자르기",
+    "input_too_long": "{{minutes}}분은 여기서 열기에 너무 깁니다. {{max}}분 미만의 녹음을 사용하세요."
   },
   "voice_profile": {
     "persona_export": "페르소나 내보내기",

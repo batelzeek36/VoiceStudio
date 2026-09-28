@@ -1963,7 +1963,28 @@
     "decode_failed": "Dekodowanie nie powiodło się: {{message}}",
     "playback_failed": "Odtwarzanie nie powiodło się: {{message}}",
     "audio_load_failed": "Wczytanie dźwięku nie powiodło się",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Długość",
+    "preset_seconds": "{{seconds}} s",
+    "snap_label": "Przyciągaj do ciszy",
+    "readout": "{{start}} – {{end}} · {{length}} s",
+    "fit_best": "Dobra długość",
+    "fit_ok": "{{min}}–{{max}} s klonują się najlepiej",
+    "fit_short": "Poniżej {{seconds}} s: dodaj więcej mowy",
+    "fit_long": "Powyżej {{max}} s: skróć",
+    "hint_drag": "Przeciągnij po fali, aby zaznaczyć",
+    "hint_play": "odtwórz",
+    "hint_length": "długość",
+    "hint_use": "użyj",
+    "hint_cancel": "anuluj"
+  },
+  "referenceTrim": {
+    "title": "Wybierz fragment do sklonowania",
+    "description": "Głos przejmuje sposób wypowiedzenia tego fragmentu. Wybierz 8–15 s jednego czystego fragmentu.",
+    "limit": "Maksymalnie {{max}} s: silnik dopasowuje transkrypcję do całego klipu, więc dłuższe klipy są odrzucane.",
+    "use": "Użyj tego fragmentu",
+    "trim": "Przytnij",
+    "input_too_long": "{{minutes}} min to za dużo, aby otworzyć tutaj. Użyj nagrania krótszego niż {{max}} min."
   },
   "voice_profile": {
     "persona_export": "Eksportuj osobę",

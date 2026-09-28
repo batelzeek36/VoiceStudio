@@ -2030,7 +2030,28 @@
     "decode_failed": "Decode failed: {{message}}",
     "playback_failed": "Playback failed: {{message}}",
     "audio_load_failed": "Audio load failed",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Length",
+    "preset_seconds": "{{seconds}} s",
+    "snap_label": "Snap to silence",
+    "readout": "{{start}} – {{end}} · {{length}} s",
+    "fit_best": "Good length",
+    "fit_ok": "{{min}}–{{max}} s clones best",
+    "fit_short": "Under {{seconds}} s: add more speech",
+    "fit_long": "Over {{max}} s: shorten it",
+    "hint_drag": "Drag on the waveform to select",
+    "hint_play": "play",
+    "hint_length": "length",
+    "hint_use": "use",
+    "hint_cancel": "cancel"
+  },
+  "referenceTrim": {
+    "title": "Choose the passage to clone",
+    "description": "The voice copies how this stretch is spoken. Pick 8–15 s of one clean passage.",
+    "limit": "{{max}} s max: the engine matches the transcript against the whole clip, so longer clips are refused.",
+    "use": "Use this passage",
+    "trim": "Trim",
+    "input_too_long": "{{minutes}} min is too long to open here. Use a recording under {{max}} min."
   },
   "voice_profile": {
     "persona_export": "Export persona",

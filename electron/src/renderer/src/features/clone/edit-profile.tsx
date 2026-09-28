@@ -11,6 +11,7 @@ import {
   FileAudioIcon,
   MicIcon,
   ReplaceIcon,
+  ScissorsIcon,
   ShieldCheckIcon,
   Trash2Icon,
   UploadCloudIcon,
@@ -32,6 +33,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { createObjectUrl, revokeObjectUrl } from '@/lib/audio/object-url';
 import { cn } from '@/lib/utils';
 import { RecordZone, ReferenceUsageNote, UploadZone } from './reference-input';
+import {
+  ReferenceTrimDialog,
+  profileReferencePath,
+  type ReferenceTrimSource,
+} from './reference-trim';
 import { ProfileImageEditor } from './profile-image-editor';
 import { formatRelative } from './format';
 import { useTtsReadiness } from '@/hooks/use-tts-readiness';
@@ -83,6 +89,14 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
     // The saved transcript describes the old clip. Leave it blank so the
     // backend transcribes the new one locally unless the user types it.
     setDraft((previous) => ({ ...previous, ref_text: '' }));
+  };
+  // The clip in the trimmer: an over-long pick, the accepted replacement, or
+  // the stored reference itself. What it confirms becomes the replacement.
+  const [trimming, setTrimming] = useState<ReferenceTrimSource | null>(null);
+  const requestTrim = (clip: File) => setTrimming({ source: clip, name: clip.name });
+  const trimStoredReference = () => {
+    refTextBeforeReplace.current = draft.ref_text;
+    setTrimming({ source: profileReferencePath(profile), name: profile.name });
   };
   const keepCurrentReference = () => {
     setReplacement(null);
@@ -161,16 +175,30 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
               {t('clone.reference_audio')}
             </h3>
             {canReplace && !replacement && !choosing && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={unavailable}
-                onClick={startReplacement}
-              >
-                <ReplaceIcon data-icon="inline-start" />
-                {t('clone.replace_reference')}
-              </Button>
+              <div className="flex items-center gap-1">
+                {profile.ref_audio_path ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={unavailable}
+                    onClick={trimStoredReference}
+                  >
+                    <ScissorsIcon data-icon="inline-start" />
+                    {t('referenceTrim.trim')}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={unavailable}
+                  onClick={startReplacement}
+                >
+                  <ReplaceIcon data-icon="inline-start" />
+                  {t('clone.replace_reference')}
+                </Button>
+              </div>
             )}
             {canReplace && (replacement || choosing) && (
               <Button
@@ -202,6 +230,16 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
                     })}
                   </span>
                 ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={unavailable}
+                  onClick={() => requestTrim(replacement.file)}
+                >
+                  <ScissorsIcon data-icon="inline-start" />
+                  {t('referenceTrim.trim')}
+                </Button>
               </div>
               <ReferenceUsageNote durationSeconds={replacement.durationSeconds} />
               {replacementUrl ? (
@@ -252,9 +290,9 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
                 </TabsList>
               </Tabs>
               {inputMode === 'upload' ? (
-                <UploadZone onAccept={acceptReplacement} />
+                <UploadZone onAccept={acceptReplacement} onTrim={requestTrim} />
               ) : (
-                <RecordZone onAccept={acceptReplacement} />
+                <RecordZone onAccept={acceptReplacement} onTrim={requestTrim} />
               )}
             </div>
           )}
@@ -263,6 +301,17 @@ export function EditProfile({ profile, onDone }: { profile: Profile; onDone: () 
               {t('clone.replace_reference_hint')}
             </p>
           )}
+          {trimming ? (
+            <ReferenceTrimDialog
+              source={trimming.source}
+              name={trimming.name}
+              onTrimmed={(trimmed, seconds) => {
+                setTrimming(null);
+                acceptReplacement(trimmed, seconds);
+              }}
+              onCancel={() => setTrimming(null)}
+            />
+          ) : null}
         </section>
       )}
 

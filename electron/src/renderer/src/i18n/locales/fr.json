@@ -1961,7 +1961,28 @@
     "decode_failed": "Échec du décodage : {{message}}",
     "playback_failed": "Échec de la lecture : {{message}}",
     "audio_load_failed": "Échec du chargement audio",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Durée",
+    "preset_seconds": "{{seconds}} s",
+    "snap_label": "Caler sur les silences",
+    "readout": "{{start}} – {{end}} · {{length}} s",
+    "fit_best": "Bonne durée",
+    "fit_ok": "{{min}}–{{max}} s clonent le mieux",
+    "fit_short": "Moins de {{seconds}} s : ajoutez de la parole",
+    "fit_long": "Plus de {{max}} s : raccourcissez",
+    "hint_drag": "Glissez sur la forme d'onde pour sélectionner",
+    "hint_play": "lire",
+    "hint_length": "durée",
+    "hint_use": "utiliser",
+    "hint_cancel": "annuler"
+  },
+  "referenceTrim": {
+    "title": "Choisissez le passage à cloner",
+    "description": "La voix copie la façon dont ce passage est dit. Choisissez 8–15 s d’un passage propre.",
+    "limit": "{{max}} s maximum : le moteur aligne la transcription sur tout le clip, les clips plus longs sont refusés.",
+    "use": "Utiliser ce passage",
+    "trim": "Rogner",
+    "input_too_long": "{{minutes}} min, c’est trop long pour l’ouvrir ici. Utilisez un enregistrement de moins de {{max}} min."
   },
   "voice_profile": {
     "persona_export": "Exporter le personnage",

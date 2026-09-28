@@ -1959,7 +1959,28 @@
     "decode_failed": "解碼失敗：{{message}}",
     "playback_failed": "播放失敗：{{message}}",
     "audio_load_failed": "音訊加載失敗",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "長度",
+    "preset_seconds": "{{seconds}} 秒",
+    "snap_label": "對齊靜音處",
+    "readout": "{{start}} – {{end}} · {{length}} 秒",
+    "fit_best": "長度合適",
+    "fit_ok": "{{min}}–{{max}} 秒克隆效果最好",
+    "fit_short": "不足 {{seconds}} 秒：請多包含一些語音",
+    "fit_long": "超過 {{max}} 秒：請縮短",
+    "hint_drag": "在波形上拖曳以選取",
+    "hint_play": "播放",
+    "hint_length": "長度",
+    "hint_use": "使用",
+    "hint_cancel": "取消"
+  },
+  "referenceTrim": {
+    "title": "選擇要克隆的片段",
+    "description": "聲音會照搬這一段的說話方式。請選擇一段乾淨的 8–15 秒。",
+    "limit": "最長 {{max}} 秒：引擎會把逐字稿與整段音訊對齊，更長的音訊會被拒絕。",
+    "use": "使用此片段",
+    "trim": "裁剪",
+    "input_too_long": "{{minutes}} 分鐘太長，無法在此開啟。請使用短於 {{max}} 分鐘的錄音。"
   },
   "voice_profile": {
     "persona_export": "匯出角色",

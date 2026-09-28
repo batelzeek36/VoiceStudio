@@ -1959,7 +1959,28 @@
     "decode_failed": "डिकोड विफल: {{message}}",
     "playback_failed": "प्लेबैक विफल: {{message}}",
     "audio_load_failed": "ऑडियो लोड विफल रहा",
-    "unit_seconds": "एस"
+    "unit_seconds": "एस",
+    "presets_label": "लंबाई",
+    "preset_seconds": "{{seconds}} से",
+    "snap_label": "मौन पर स्नैप करें",
+    "readout": "{{start}} – {{end}} · {{length}} से",
+    "fit_best": "अच्छी लंबाई",
+    "fit_ok": "{{min}}–{{max}} से सबसे अच्छा क्लोन बनता है",
+    "fit_short": "{{seconds}} से से कम: और बोली जोड़ें",
+    "fit_long": "{{max}} से से ज़्यादा: छोटा करें",
+    "hint_drag": "चुनने के लिए वेवफ़ॉर्म पर खींचें",
+    "hint_play": "चलाएँ",
+    "hint_length": "लंबाई",
+    "hint_use": "उपयोग करें",
+    "hint_cancel": "रद्द करें"
+  },
+  "referenceTrim": {
+    "title": "क्लोन करने के लिए अंश चुनें",
+    "description": "आवाज़ इस अंश के बोलने के तरीके की नकल करती है। एक साफ़ अंश के 8–15 से चुनें।",
+    "limit": "अधिकतम {{max}} से: इंजन ट्रांसक्रिप्ट को पूरी क्लिप से मिलाता है, इसलिए लंबी क्लिप अस्वीकार हो जाती हैं।",
+    "use": "यह अंश उपयोग करें",
+    "trim": "ट्रिम करें",
+    "input_too_long": "{{minutes}} मिनट यहाँ खोलने के लिए बहुत लंबा है। {{max}} मिनट से छोटी रिकॉर्डिंग उपयोग करें।"
   },
   "voice_profile": {
     "persona_export": "व्यक्तित्व निर्यात करें",

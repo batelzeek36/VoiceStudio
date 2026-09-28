@@ -1959,7 +1959,28 @@
     "decode_failed": "Giải mã không thành công: {{message}}",
     "playback_failed": "Phát lại không thành công: {{message}}",
     "audio_load_failed": "Tải âm thanh không thành công",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Độ dài",
+    "preset_seconds": "{{seconds}} giây",
+    "snap_label": "Bắt vào khoảng lặng",
+    "readout": "{{start}} – {{end}} · {{length}} giây",
+    "fit_best": "Độ dài tốt",
+    "fit_ok": "{{min}}–{{max}} giây nhân bản tốt nhất",
+    "fit_short": "Dưới {{seconds}} giây: thêm giọng nói",
+    "fit_long": "Trên {{max}} giây: rút ngắn lại",
+    "hint_drag": "Kéo trên dạng sóng để chọn",
+    "hint_play": "phát",
+    "hint_length": "độ dài",
+    "hint_use": "dùng",
+    "hint_cancel": "hủy"
+  },
+  "referenceTrim": {
+    "title": "Chọn đoạn để nhân bản",
+    "description": "Giọng nói sao chép cách đoạn này được nói. Chọn 8–15 giây của một đoạn sạch.",
+    "limit": "Tối đa {{max}} giây: engine khớp bản chép lời với toàn bộ clip, nên clip dài hơn bị từ chối.",
+    "use": "Dùng đoạn này",
+    "trim": "Cắt",
+    "input_too_long": "{{minutes}} phút là quá dài để mở ở đây. Hãy dùng bản ghi dưới {{max}} phút."
   },
   "voice_profile": {
     "persona_export": "Xuất khẩu nhân vật",

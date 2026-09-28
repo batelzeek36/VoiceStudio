@@ -1959,7 +1959,28 @@
     "decode_failed": "Avkodning misslyckades: {{message}}",
     "playback_failed": "Uppspelningen misslyckades: {{message}}",
     "audio_load_failed": "Ljudladdning misslyckades",
-    "unit_seconds": "s"
+    "unit_seconds": "s",
+    "presets_label": "Längd",
+    "preset_seconds": "{{seconds}} s",
+    "snap_label": "Fäst vid tystnad",
+    "readout": "{{start}} – {{end}} · {{length}} s",
+    "fit_best": "Bra längd",
+    "fit_ok": "{{min}}–{{max}} s klonas bäst",
+    "fit_short": "Under {{seconds}} s: lägg till mer tal",
+    "fit_long": "Över {{max}} s: korta ner",
+    "hint_drag": "Dra på vågformen för att markera",
+    "hint_play": "spela",
+    "hint_length": "längd",
+    "hint_use": "använd",
+    "hint_cancel": "avbryt"
+  },
+  "referenceTrim": {
+    "title": "Välj avsnittet som ska klonas",
+    "description": "Rösten kopierar hur det här avsnittet sägs. Välj 8–15 s av ett rent avsnitt.",
+    "limit": "Högst {{max}} s: motorn matchar transkriptionen mot hela klippet, så längre klipp avvisas.",
+    "use": "Använd det här avsnittet",
+    "trim": "Trimma",
+    "input_too_long": "{{minutes}} min är för långt för att öppna här. Använd en inspelning under {{max}} min."
   },
   "voice_profile": {
     "persona_export": "Exportera persona",

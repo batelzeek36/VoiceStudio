@@ -8,6 +8,18 @@ metadata and the backend fallback mirror it. Archived Tauri manifests stay froze
 
 ## [Unreleased]
 
+**Highlights**
+
+- Voice Clone has a built-in trimmer: pick the exact stretch a new voice learns from, with 10, 15 and 20 s presets.
+
+### Added
+
+- Reference trimmer in Voice Clone: a clip over 20 s opens the trimmer automatically and a shorter clip offers Trim; length presets (10/15/20 s, keys 1/2/3) keep the start and set the length, cuts snap into pauses (toggle), the selection loops in a preview, and only the trimmed WAV becomes the reference and is transcribed. The same trimmer also cuts a saved voice's stored reference or its replacement in Edit voice.
+
+### Changed
+
+- The gallery's Trim view now shares the Voice Clone trimmer, so it gains the length presets and pause snapping.
+
 ## [0.5.6] — 2026-09-23
 
 **VoiceStudio now talks to your other tools.** Answer Twilio phone calls in a saved voice, and connect Claude Code, Cursor, Codex CLI and the OpenAI Agents SDK to VoiceStudio with copyable setup that works, including in Docker, where MCP previously returned HTTP 405. Integration cards now say plainly which ones work with VoiceStudio and which are external links.
