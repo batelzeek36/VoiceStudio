@@ -55,6 +55,14 @@ steps. Measured on one M1 Max (MPS, OmniVoice, 64 steps): a 66 s read took 276 s
    sidecar has no prompt cache and encodes the reference on every call, so a longer reference is cost on every call
    (modelled as length above), and the native prompt cache saves about 0.4 s per new voice, below timing noise.
 
+   **Recency.** A desktop's throughput drifts with its background load: on the M1 Max the same call took 35.7 s and,
+   minutes later under heavier load from other work, 51.0 s. The line keeps the shape; the machine's current *pace*
+   multiplies it: the weighted mean of the recent calls' log(observed / predicted), each weighted by
+   `2 ** -(age / 2 min)` of wall-clock age, with a prior of half a call at pace 1. Wall-clock, not call count, because
+   what drifts is load, which moves with time: after an idle hour the old evidence has aged out and the estimate
+   returns to the long-run line, while during a burst of calls the newest three to six decide. Recent calls that
+   scatter widen the range (their weighted 10th to 90th percentile around the paced line).
+
 3. **Plan the calls.** `POST /render/estimate` takes what a render takes (surface, text or script, voice map, engine,
    steps, speed, duration, chunking) and runs the same planning code the render runs (pause markers, the longform
    parser, markup splits, the chunker), so the number of calls and the audio each produces match the real render.
@@ -67,6 +75,7 @@ steps. Measured on one M1 Max (MPS, OmniVoice, 64 steps): a 66 s read took 276 s
    Stories and Audiobook: after the runtime estimate, "render about 13 min". During a render: a countdown from the
    planned total and the calls done so far, re-fitted as calls finish, never below zero ("finishing up" instead).
    Every string through i18n, in all locales.
+
 
 ## Why this works on other machines
 
@@ -113,6 +122,6 @@ Refinements made while building it, all within the decision above:
 - The calibration message reads "Estimate appears after a few renders on this machine": the threshold is three
   calls, and one short take is one call, so "after your first render" would be false after a first short take.
 - Code: `services/render_timing.py` (record), `services/render_warmth.py` (cold-call signals),
-  `services/render_fit.py` (model), `services/render_plan.py` and
+  `services/render_fit.py` (model and recency), `services/render_plan.py` and
   `services/render_estimate.py` with `api/routers/render_estimate.py` (plan and price), and the Electron renderer's
   `render-estimate-hint.tsx`, `render-estimate-inline.tsx` and `generation-progress.tsx` (show).
