@@ -2793,6 +2793,11 @@
     "rough_hint": "Başka kalite ayarlarıyla yapılan oluşturmalardan hesaplandı. Bu ayarlarla bir oluşturmadan sonra kesinleşir.",
     "inline_about": "oluşturma yaklaşık {{time}}",
     "inline_roughly": "oluşturma kabaca {{time}}",
-    "inline_cold": "oluşturma süresi, bu bilgisayarda birkaç oluşturmadan sonra görünür"
+    "inline_cold": "oluşturma süresi, bu bilgisayarda birkaç oluşturmadan sonra görünür",
+    "range_on": "{{worker}} üzerinde genellikle {{low}} ile {{high}} arası",
+    "cold_on": "Tahmin, {{worker}} üzerinde birkaç oluşturmadan sonra görünür",
+    "inline_cold_on": "oluşturma süresi, {{worker}} üzerinde birkaç oluşturmadan sonra görünür",
+    "offline": "{{worker}} çevrimdışı",
+    "unavailable": "{{worker}} şu anda oluşturma yapamıyor"
   }
 }

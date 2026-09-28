@@ -2797,6 +2797,11 @@
     "rough_hint": "Wyliczone z renderowań przy innych ustawieniach jakości. Będzie dokładne po renderowaniu z tymi ustawieniami.",
     "inline_about": "renderowanie około {{time}}",
     "inline_roughly": "renderowanie mniej więcej {{time}}",
-    "inline_cold": "czas renderowania pojawi się po kilku renderowaniach na tym komputerze"
+    "inline_cold": "czas renderowania pojawi się po kilku renderowaniach na tym komputerze",
+    "range_on": "Zwykle od {{low}} do {{high}} na {{worker}}",
+    "cold_on": "Szacunek pojawi się po kilku renderowaniach na {{worker}}",
+    "inline_cold_on": "czas renderowania pojawi się po kilku renderowaniach na {{worker}}",
+    "offline": "{{worker}} jest offline",
+    "unavailable": "{{worker}} nie może teraz renderować"
   }
 }

@@ -2797,6 +2797,11 @@
     "rough_hint": "根据其他质量设置下的生成换算得出。用这些设置生成一次后会更准确。",
     "inline_about": "生成约 {{time}}",
     "inline_roughly": "生成大约 {{time}}",
-    "inline_cold": "在这台电脑上生成几次后会显示生成时间"
+    "inline_cold": "在这台电脑上生成几次后会显示生成时间",
+    "range_on": "在 {{worker}} 上通常需 {{low}} 至 {{high}}",
+    "cold_on": "在 {{worker}} 上生成几次后会显示预估时间",
+    "inline_cold_on": "在 {{worker}} 上生成几次后会显示生成时间",
+    "offline": "{{worker}} 已离线",
+    "unavailable": "{{worker}} 当前无法生成"
   }
 }

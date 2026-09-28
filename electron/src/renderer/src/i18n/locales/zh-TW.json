@@ -2793,6 +2793,11 @@
     "rough_hint": "根據其他品質設定下的產生結果換算而來。用這些設定產生一次後會更準確。",
     "inline_about": "產生約 {{time}}",
     "inline_roughly": "產生大約 {{time}}",
-    "inline_cold": "在這台電腦上產生幾次後會顯示產生時間"
+    "inline_cold": "在這台電腦上產生幾次後會顯示產生時間",
+    "range_on": "在 {{worker}} 上通常需 {{low}} 至 {{high}}",
+    "cold_on": "在 {{worker}} 上產生幾次後會顯示預估時間",
+    "inline_cold_on": "在 {{worker}} 上產生幾次後會顯示產生時間",
+    "offline": "{{worker}} 已離線",
+    "unavailable": "{{worker}} 目前無法產生"
   }
 }

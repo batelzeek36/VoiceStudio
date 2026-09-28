@@ -79,6 +79,7 @@ const estimate = vi.hoisted(() => ({
     calls: number;
     samples: number;
     parts: { calls: number; seconds: number | null }[];
+    target: { kind: 'local' } | { kind: 'remote'; label: string };
   },
 }));
 vi.mock('@/hooks/use-render-estimate', () => ({ useRenderEstimate: () => estimate.value }));
@@ -184,6 +185,7 @@ describe('ActionBar', () => {
       calls: 1,
       samples: 6,
       parts: [{ calls: 1, seconds: 276 }],
+      target: { kind: 'local' },
     };
     const view = render(<ActionBar />);
     expect(screen.getByText('About 5 min to render')).toBeVisible();
@@ -203,11 +205,10 @@ describe('ActionBar', () => {
       calls: 1,
       samples: 0,
       parts: [{ calls: 1, seconds: null }],
+      target: { kind: 'local' },
     };
     render(<ActionBar />);
-    expect(
-      screen.getByText('Estimate appears after a few renders on this machine'),
-    ).toBeVisible();
+    expect(screen.getByText('Estimate appears after a few renders on this machine')).toBeVisible();
   });
 });
 

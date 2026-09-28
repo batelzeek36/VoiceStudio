@@ -2793,6 +2793,11 @@
     "rough_hint": "Dihitung dari render dengan pengaturan kualitas lain. Menjadi tepat setelah satu render dengan pengaturan ini.",
     "inline_about": "render sekitar {{time}}",
     "inline_roughly": "render kira-kira {{time}}",
-    "inline_cold": "waktu render muncul setelah beberapa kali render di komputer ini"
+    "inline_cold": "waktu render muncul setelah beberapa kali render di komputer ini",
+    "range_on": "Biasanya {{low}} hingga {{high}} di {{worker}}",
+    "cold_on": "Perkiraan muncul setelah beberapa kali render di {{worker}}",
+    "inline_cold_on": "waktu render muncul setelah beberapa kali render di {{worker}}",
+    "offline": "{{worker}} sedang offline",
+    "unavailable": "{{worker}} tidak dapat melakukan render saat ini"
   }
 }

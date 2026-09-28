@@ -15,8 +15,13 @@ Basis:
   render will pay has been measured here.
 * ``rough``: scaled from other steps, a planned pass longer or shorter than
   anything measured, or a cold cost not measured yet; the range is wider.
-* ``none``: fewer than three warm calls here, or the render will not run on
-  this machine. No number is better than a number that is wrong somewhere.
+* ``none``: fewer than three warm calls in this bucket, or the worker the
+  user chose cannot take the render right now. No number is better than a
+  number that is wrong somewhere.
+
+A render sent to a remote worker is priced from that worker's own bucket
+(services/render_remote.py): ``device`` names the worker, and each planned
+"call" is one remote task (a whole take, or one chapter).
 """
 from __future__ import annotations
 
@@ -27,7 +32,7 @@ from services import render_fit, render_timing
 
 #: Why there is no number (``basis == "none"``).
 REASON_COLD_START = "cold_start"
-REASON_REMOTE = "remote"
+REASON_REMOTE_UNAVAILABLE = "remote_unavailable"
 REASON_NO_RATE = "no_rate"
 
 PlannedAudio = tuple[Optional[float], float]
@@ -47,11 +52,12 @@ def _none(base: dict, parts: Sequence[Sequence[PlannedAudio]], reason: str) -> d
     }
 
 
-def remote_estimate(*, engine: str, calls: int) -> dict:
-    """The render goes to a remote worker: this machine's speed says nothing."""
-    base = {"engine": engine, "device": None, "num_step": None, "calls": calls,
+def unavailable_estimate(*, engine: str) -> dict:
+    """The worker the user chose cannot take work right now: say so rather
+    than price a render on a machine it is not meant for."""
+    base = {"engine": engine, "device": None, "num_step": None, "calls": 0,
             "audio_seconds": None, "samples": 0}
-    return _none(base, [], REASON_REMOTE)
+    return _none(base, [], REASON_REMOTE_UNAVAILABLE)
 
 
 def estimate(*, engine: str, device: str, num_step: Optional[int],
@@ -125,4 +131,5 @@ def estimate(*, engine: str, device: str, num_step: Optional[int],
     }
 
 
-__all__ = ["REASON_COLD_START", "REASON_NO_RATE", "REASON_REMOTE", "estimate", "remote_estimate"]
+__all__ = ["REASON_COLD_START", "REASON_NO_RATE", "REASON_REMOTE_UNAVAILABLE", "estimate",
+           "unavailable_estimate"]

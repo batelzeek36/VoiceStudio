@@ -128,11 +128,26 @@ Refinements made while building it, all within the decision above:
   bucket.
 - The rough fit pools every sample of the engine and device, rescaling each one's audio by its steps ratio, which is
   the same as scaling `b` and leaving `a`; its range is widened by 20 to 25 percent.
-- The response also carries `reason` (`cold_start`, `remote`, `no_rate`), `audio_seconds`, the bucket, and `parts`:
+- The response also carries `reason` (`cold_start`, `remote_unavailable`, `no_rate`), `target`, `audio_seconds`, the
+  bucket, and `parts`:
   planned seconds per chapter, which the live countdown re-fits as chapters finish (cached chapters count as instant,
   one slow chapter bends the rest at most 4x, the chapter in progress waits at zero instead of going negative).
 - The calibration message reads "Estimate appears after a few renders on this machine": the threshold is three
   calls, and one short take is one call, so "after your first render" would be false after a first short take.
+- **Remote workers** (added when renders started going to a paired GPU worker): the first cut answered
+  `reason: remote` with no number, which is no help to someone whose every render goes to the worker. Now the control
+  plane records one row per remote synthesis task it dispatches (`gpu_gateway._run_remote`, only for calls the render
+  surfaces tag with `timed`), timed on this machine from dispatch to the result read back, so upload, queue, model
+  load and download are in it. The bucket device is `remote:<worker id>:<gpu>` (the registry's id and the worker's
+  GPU model), engine and steps as usual. A remote task is a whole take (`/generate` sends the whole script; the worker
+  splits it) or one chapter, so the estimate plans one call per task with that task's audio, fitted as a plain line.
+  A task is cold when the worker's heartbeats said the engine was not resident before dispatch, or the task passed
+  through `model_loading`; the load cost is added when the worker says it is not resident now. The estimate reads the
+  bucket of `worker.routing.status(op=...)`, never mixes local and remote rows, and a chosen worker that cannot take
+  work answers `remote_unavailable` with its name instead of a number (the render itself would fall back here under
+  routing rule 1; the note tells the user before they click). A remote longform render counts down one call per
+  chapter: re-fitted as chapters come back, the chapter in flight counted down from its plan by the client.
+  Code: `services/render_remote.py`.
 - Code: `services/render_timing.py` (record), `services/render_warmth.py` (cold-call signals),
   `services/render_fit.py` (model and recency), `services/render_countdown.py` and `services/longform_progress.py`
   (the live countdown), `services/render_plan.py` and

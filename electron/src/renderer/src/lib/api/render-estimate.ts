@@ -4,10 +4,17 @@ import type { CloneSettings } from '@/lib/store/clone-settings';
 
 /**
  * `POST /render/estimate` (docs/adr/render-time-estimate.md): how long a render
- * will take on THIS machine, from the timings its own renders recorded.
+ * will take where it will run, from the timings recorded there: this machine's
+ * own renders, or the remote GPU worker's end-to-end tasks.
  */
 export type RenderEstimateBasis = 'measured' | 'rough' | 'none';
-export type RenderEstimateReason = 'cold_start' | 'remote' | 'no_rate';
+export type RenderEstimateReason = 'cold_start' | 'remote_unavailable' | 'no_rate';
+
+/** Where the priced render runs: this machine, or the worker the GPU picker chose. */
+export type RenderTarget =
+  | { kind: 'local' }
+  | { kind: 'remote'; label: string }
+  | { kind: 'unavailable'; label: string; offline: boolean };
 
 export interface RenderEstimatePart {
   calls: number;
@@ -26,6 +33,7 @@ export interface RenderEstimate {
   samples: number;
   /** One per chapter for longform renders, one for a Voice cloning take. */
   parts: RenderEstimatePart[];
+  target: RenderTarget;
 }
 
 export type RenderEstimateRequest = { surface: 'generate' | 'audiobook' | 'longform' } & Record<
@@ -33,7 +41,24 @@ export type RenderEstimateRequest = { surface: 'generate' | 'audiobook' | 'longf
   unknown
 >;
 
-const REASONS: readonly RenderEstimateReason[] = ['cold_start', 'remote', 'no_rate'];
+const REASONS: readonly RenderEstimateReason[] = ['cold_start', 'remote_unavailable', 'no_rate'];
+const LOCAL_TARGET: RenderTarget = { kind: 'local' };
+/** The worker's own name, as the picker shows it; longer is not a name. */
+const MAX_LABEL = 64;
+
+function parseTarget(value: unknown): RenderTarget | null {
+  if (value === undefined || value === null) return LOCAL_TARGET;
+  if (typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (record.kind === 'local') return LOCAL_TARGET;
+  const label = typeof record.label === 'string' ? record.label.trim() : '';
+  if (!label || label.length > MAX_LABEL) return null;
+  if (record.kind === 'remote') return { kind: 'remote', label };
+  if (record.kind === 'unavailable') {
+    return { kind: 'unavailable', label, offline: record.offline === true };
+  }
+  return null;
+}
 
 function seconds(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
@@ -50,9 +75,18 @@ function count(value: unknown): number {
 export function parseRenderEstimate(raw: unknown): RenderEstimate | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const record = raw as Record<string, unknown>;
+  // A target that cannot be read would put a number on the wrong machine.
+  const target = parseTarget(record.target);
+  if (target === null) return null;
   const total = seconds(record.seconds);
-  const priced = (record.basis === 'measured' || record.basis === 'rough') && total !== null;
-  const reason = REASONS.find((value) => value === record.reason) ?? 'cold_start';
+  const priced =
+    (record.basis === 'measured' || record.basis === 'rough') &&
+    total !== null &&
+    target.kind !== 'unavailable';
+  const reason =
+    target.kind === 'unavailable'
+      ? 'remote_unavailable'
+      : (REASONS.find((value) => value === record.reason) ?? 'cold_start');
   const parts = Array.isArray(record.parts)
     ? record.parts.map((part) => {
         const entry = part && typeof part === 'object' ? (part as Record<string, unknown>) : {};
@@ -68,6 +102,7 @@ export function parseRenderEstimate(raw: unknown): RenderEstimate | null {
     calls: count(record.calls),
     samples: count(record.samples),
     parts,
+    target,
   };
 }
 

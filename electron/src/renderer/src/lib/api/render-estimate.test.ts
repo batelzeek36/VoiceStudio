@@ -30,7 +30,47 @@ describe('parseRenderEstimate', () => {
         { calls: 10, seconds: 500.2 },
         { calls: 8, seconds: 312.2 },
       ],
+      target: { kind: 'local' },
     });
+  });
+
+  it('names the remote worker the render goes to', () => {
+    const remote = parseRenderEstimate({
+      ...measured,
+      target: { kind: 'remote', label: 'KAIROS' },
+    });
+    expect(remote).toMatchObject({ seconds: 812.4, target: { kind: 'remote', label: 'KAIROS' } });
+  });
+
+  it('never prices a render for a worker that cannot take it', () => {
+    const offline = parseRenderEstimate({
+      ...measured,
+      basis: 'none',
+      reason: 'remote_unavailable',
+      seconds: null,
+      target: { kind: 'unavailable', label: 'KAIROS', offline: true },
+    });
+    expect(offline).toMatchObject({
+      basis: 'none',
+      reason: 'remote_unavailable',
+      seconds: null,
+      target: { kind: 'unavailable', label: 'KAIROS', offline: true },
+    });
+    // Even a (buggy) number next to an unavailable target is not shown.
+    const contradictory = parseRenderEstimate({
+      ...measured,
+      target: { kind: 'unavailable', label: 'KAIROS' },
+    });
+    expect(contradictory).toMatchObject({ seconds: null, reason: 'remote_unavailable' });
+  });
+
+  it('shows nothing when the target cannot be read', () => {
+    expect(parseRenderEstimate({ ...measured, target: { kind: 'remote' } })).toBeNull();
+    expect(parseRenderEstimate({ ...measured, target: { kind: 'mars', label: 'x' } })).toBeNull();
+    expect(
+      parseRenderEstimate({ ...measured, target: { kind: 'remote', label: 'x'.repeat(65) } }),
+    ).toBeNull();
+    expect(parseRenderEstimate({ ...measured, target: 'KAIROS' })).toBeNull();
   });
 
   it('keeps the cold-start reason and never invents a number', () => {

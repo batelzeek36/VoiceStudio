@@ -2793,6 +2793,11 @@
     "rough_hint": "Scaled from renders at other quality settings. It becomes exact after a render at these settings.",
     "inline_about": "render about {{time}}",
     "inline_roughly": "render roughly {{time}}",
-    "inline_cold": "render time appears after a few renders on this machine"
+    "inline_cold": "render time appears after a few renders on this machine",
+    "range_on": "Usually {{low}} to {{high}} on {{worker}}",
+    "cold_on": "Estimate appears after a few renders on {{worker}}",
+    "inline_cold_on": "render time appears after a few renders on {{worker}}",
+    "offline": "{{worker}} is offline",
+    "unavailable": "{{worker}} can't take renders right now"
   }
 }

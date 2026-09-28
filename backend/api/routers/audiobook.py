@@ -957,7 +957,22 @@ def _remote_chapter_call(chapter, *, engine_id, default_voice, voice_map,
     return gpu_gateway.RemoteCall(
         engine=engine_id, operation="audiobook", params=params,
         idempotency_key=f"audiobook:{signature}", decode=decode,
+        timed=_remote_timed(engine_id, opts),
     ), wav_path
+
+
+def _remote_timed(engine_id, opts):
+    """Render-time estimate: the steps a remote chapter's end-to-end timing is
+    filed under, resolved exactly as the render resolves them (None: not an
+    engine this app knows, so nothing is recorded)."""
+    from services.tts_backend import get_backend_class
+
+    try:
+        cls = get_backend_class(engine_id)
+    except ValueError:
+        return None
+    return {"num_step": render_timing.timing_steps(cls, _engine_num_step(cls, opts)),
+            "speed": None}
 
 
 async def _run_chapter(chapter, *, operation="audiobook", decision, job, default_voice, language, opts,
@@ -1193,20 +1208,25 @@ async def _render_longform_sse(
         interrupted = False
         yield _emit({"type": "started", "job_id": job_id, "chapters": total})
 
-        # Live countdown (docs/adr/render-time-estimate.md): the per-call plan
-        # the estimate made, re-fitted after every engine call. Local renders
-        # with a measured estimate only; everything else streams as before.
+        # Live countdown (docs/adr/render-time-estimate.md): the plan the
+        # estimate made for where this render runs. Local: per engine call,
+        # re-fitted after every call. Remote: a worker reports nothing inside a
+        # chapter, so one call per chapter, re-fitted as each chapter comes
+        # back (the client counts the chapter in flight down meanwhile).
+        # Without a number (first renders there) it streams as before.
         countdown = None
-        if not decision.remote:
-            try:
-                from api.routers.render_estimate import plan_longform
+        per_chapter = bool(decision.remote)
+        try:
+            from api.routers.render_estimate import plan_longform
+            from services import render_remote
 
-                countdown = longform_progress.countdown_for(await asyncio.to_thread(
-                    plan_longform, plan, default_voice=default_voice, voice_map=voice_map,
-                    language=resolved_lang, lexicon=lexicon, opts=opts, detail=True))
-            except Exception:  # noqa: BLE001 - a countdown is never worth a failed render
-                logger.debug("[%s] render countdown unavailable", job_id, exc_info=True)
-                countdown = None
+            countdown = longform_progress.countdown_for(await asyncio.to_thread(
+                plan_longform, plan, default_voice=default_voice, voice_map=voice_map,
+                language=resolved_lang, lexicon=lexicon, opts=opts, detail=True,
+                route=render_remote.route_from_decision(decision)))
+        except Exception:  # noqa: BLE001 - a countdown is never worth a failed render
+            logger.debug("[%s] render countdown unavailable", job_id, exc_info=True)
+            countdown = None
         if countdown is not None:
             yield _progress_line(longform_progress.progress_event(countdown, 0))
 
@@ -1241,6 +1261,8 @@ async def _render_longform_sse(
             try:
                 if countdown is None:
                     result = await start_chapter()
+                elif per_chapter:
+                    result = await longform_progress.timed_chapter(start_chapter, countdown, i)
                 else:
                     result = None
                     steps = longform_progress.chapter_with_progress(start_chapter, countdown, i)

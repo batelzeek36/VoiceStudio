@@ -39,6 +39,8 @@ _RATE_WINDOW = 400
 _BUSY_TIMEOUT_MS = 1000
 
 _ID_RE = re.compile(r"[^a-z0-9._:-]+")
+#: Longest stored device: "remote:<worker id>:<gpu>" for a remote worker.
+_DEVICE_LIMIT = 64
 
 SampleRate = Union[int, float, Callable[[], Any]]
 
@@ -183,7 +185,9 @@ def record(engine: str, device: str, num_step: Optional[int], text_chars: int,
     """Store one completed call. Returns False (and stores nothing) for a call
     that produced no audio or carries a non-finite number. Never raises."""
     try:
-        engine, device = clean_id(engine), clean_id(device, limit=16)
+        # A remote worker's device names the worker and its GPU
+        # (services/render_remote.py); local device classes are short.
+        engine, device = clean_id(engine), clean_id(device, limit=_DEVICE_LIMIT)
         values = (float(audio_seconds), float(wall_seconds))
         if not engine or not device or text_chars <= 0:
             return False

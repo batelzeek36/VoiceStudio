@@ -2793,6 +2793,11 @@
     "rough_hint": "다른 품질 설정의 렌더링에서 환산한 값입니다. 이 설정으로 한 번 렌더링하면 정확해집니다.",
     "inline_about": "렌더링 약 {{time}}",
     "inline_roughly": "렌더링 대략 {{time}}",
-    "inline_cold": "렌더링 시간은 이 컴퓨터에서 몇 번 렌더링한 뒤 표시됩니다"
+    "inline_cold": "렌더링 시간은 이 컴퓨터에서 몇 번 렌더링한 뒤 표시됩니다",
+    "range_on": "{{worker}}에서는 보통 {{low}}~{{high}}",
+    "cold_on": "{{worker}}에서 몇 번 렌더링하면 예상 시간이 표시됩니다",
+    "inline_cold_on": "렌더링 시간은 {{worker}}에서 몇 번 렌더링한 뒤 표시됩니다",
+    "offline": "{{worker}}이(가) 오프라인입니다",
+    "unavailable": "{{worker}}에서 지금은 렌더링할 수 없습니다"
   }
 }
