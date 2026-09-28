@@ -1,0 +1,286 @@
+{
+ "about": "31 real render_timings rows, numbers only, one M1 Max running OmniVoice in its MPS sidecar on 2026-09-27, in the order recorded. t is seconds after the first row finished. From about t=2400 other sessions raised the machine's load and the same kind of call started taking about 1.5x as long (row 19: 21.4 s audio in 35.7 s; row 31: the same text in 50.4 s). Rows 15 to 29 are one 15-call audiobook render with three voices (references 11.35, 14.95 and 13.4 s).",
+ "engine": "omnivoice",
+ "device": "mps",
+ "rows": [
+  {
+   "t": 0.0,
+   "num_step": 64,
+   "text_chars": 53,
+   "audio_seconds": 4.56,
+   "wall_seconds": 22.03,
+   "ref_seconds": 11.35,
+   "cold": "load"
+  },
+  {
+   "t": 17.7,
+   "num_step": 64,
+   "text_chars": 72,
+   "audio_seconds": 6.48,
+   "wall_seconds": 16.46,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 39.3,
+   "num_step": 64,
+   "text_chars": 139,
+   "audio_seconds": 11.84,
+   "wall_seconds": 21.4,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 118.6,
+   "num_step": 64,
+   "text_chars": 372,
+   "audio_seconds": 32.04,
+   "wall_seconds": 59.84,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 185.0,
+   "num_step": 64,
+   "text_chars": 123,
+   "audio_seconds": 8.2,
+   "wall_seconds": 21.9,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 220.3,
+   "num_step": 64,
+   "text_chars": 318,
+   "audio_seconds": 21.4,
+   "wall_seconds": 35.01,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 301.8,
+   "num_step": 64,
+   "text_chars": 552,
+   "audio_seconds": 37.12,
+   "wall_seconds": 80.85,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 447.3,
+   "num_step": 64,
+   "text_chars": 654,
+   "audio_seconds": 44.3,
+   "wall_seconds": 144.55,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 1623.5,
+   "num_step": 64,
+   "text_chars": 123,
+   "audio_seconds": 10.88,
+   "wall_seconds": 29.01,
+   "ref_seconds": 11.35,
+   "cold": "load"
+  },
+  {
+   "t": 1680.6,
+   "num_step": 64,
+   "text_chars": 313,
+   "audio_seconds": 27.32,
+   "wall_seconds": 36.73,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 1911.8,
+   "num_step": 64,
+   "text_chars": 207,
+   "audio_seconds": 17.84,
+   "wall_seconds": 33.82,
+   "ref_seconds": 11.35,
+   "cold": "load"
+  },
+  {
+   "t": 1944.3,
+   "num_step": 64,
+   "text_chars": 266,
+   "audio_seconds": 22.08,
+   "wall_seconds": 31.38,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 2137.3,
+   "num_step": 16,
+   "text_chars": 150,
+   "audio_seconds": 13.0,
+   "wall_seconds": 6.74,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 2144.5,
+   "num_step": 16,
+   "text_chars": 150,
+   "audio_seconds": 13.0,
+   "wall_seconds": 6.73,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 2247.2,
+   "num_step": 64,
+   "text_chars": 118,
+   "audio_seconds": 10.52,
+   "wall_seconds": 20.19,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 2265.5,
+   "num_step": 64,
+   "text_chars": 64,
+   "audio_seconds": 4.68,
+   "wall_seconds": 18.28,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 2289.0,
+   "num_step": 64,
+   "text_chars": 139,
+   "audio_seconds": 12.12,
+   "wall_seconds": 23.48,
+   "ref_seconds": 13.4,
+   "cold": null
+  },
+  {
+   "t": 2304.7,
+   "num_step": 64,
+   "text_chars": 36,
+   "audio_seconds": 3.72,
+   "wall_seconds": 15.68,
+   "ref_seconds": 13.4,
+   "cold": null
+  },
+  {
+   "t": 2340.4,
+   "num_step": 64,
+   "text_chars": 318,
+   "audio_seconds": 21.4,
+   "wall_seconds": 35.65,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 2448.8,
+   "num_step": 64,
+   "text_chars": 552,
+   "audio_seconds": 48.42,
+   "wall_seconds": 108.32,
+   "ref_seconds": 13.4,
+   "cold": null
+  },
+  {
+   "t": 2503.3,
+   "num_step": 64,
+   "text_chars": 335,
+   "audio_seconds": 22.84,
+   "wall_seconds": 54.46,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 2557.5,
+   "num_step": 64,
+   "text_chars": 248,
+   "audio_seconds": 22.0,
+   "wall_seconds": 54.2,
+   "ref_seconds": 13.4,
+   "cold": null
+  },
+  {
+   "t": 2581.2,
+   "num_step": 64,
+   "text_chars": 32,
+   "audio_seconds": 3.28,
+   "wall_seconds": 23.6,
+   "ref_seconds": 13.4,
+   "cold": null
+  },
+  {
+   "t": 2633.9,
+   "num_step": 64,
+   "text_chars": 266,
+   "audio_seconds": 17.32,
+   "wall_seconds": 52.64,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 2669.2,
+   "num_step": 64,
+   "text_chars": 123,
+   "audio_seconds": 10.68,
+   "wall_seconds": 35.32,
+   "ref_seconds": 13.4,
+   "cold": null
+  },
+  {
+   "t": 2721.5,
+   "num_step": 64,
+   "text_chars": 281,
+   "audio_seconds": 18.84,
+   "wall_seconds": 52.26,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 2746.5,
+   "num_step": 64,
+   "text_chars": 66,
+   "audio_seconds": 5.88,
+   "wall_seconds": 24.97,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 2764.8,
+   "num_step": 64,
+   "text_chars": 13,
+   "audio_seconds": 1.92,
+   "wall_seconds": 18.28,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 2782.0,
+   "num_step": 64,
+   "text_chars": 9,
+   "audio_seconds": 1.64,
+   "wall_seconds": 17.1,
+   "ref_seconds": 11.35,
+   "cold": null
+  },
+  {
+   "t": 2893.2,
+   "num_step": 64,
+   "text_chars": 318,
+   "audio_seconds": 21.4,
+   "wall_seconds": 51.98,
+   "ref_seconds": 14.95,
+   "cold": null
+  },
+  {
+   "t": 2944.3,
+   "num_step": 64,
+   "text_chars": 318,
+   "audio_seconds": 21.4,
+   "wall_seconds": 50.4,
+   "ref_seconds": 14.95,
+   "cold": null
+  }
+ ]
+}

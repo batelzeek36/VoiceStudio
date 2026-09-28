@@ -24,6 +24,21 @@ long reference whose passage has not been chosen yet) are kept out of the line
 and measured as their own overhead, which the estimate adds only when the
 planned render will pay it. Fewer than :data:`MIN_SAMPLES` warm calls: no fit.
 
+**Recency.** A desktop's throughput drifts with what else it is doing: the
+same call took 35.7 s and, forty minutes later under heavier background load,
+51.0 s. The line keeps the shape (what length costs); the machine's current
+*pace* is a multiplier on it, taken from how the recent calls ran against the
+line: a weighted mean of their log(observed / predicted), each call weighted
+by ``2 ** -(age / 2 min)`` in wall-clock time, plus a prior of half a call at
+pace 1. Wall-clock rather than call count, because what drifts is the
+machine's load, which moves with time: after an idle hour the old evidence has
+aged out and the estimate falls back to the machine's long-run line instead of
+trusting a stale session. Two minutes because a render's calls arrive every 20
+to 60 s, so the last three to six calls decide; on the drifting Mac it cut the
+error after the slowdown from 33% to 12% (5 minutes: 16%). Recent calls that
+scatter widely widen the range. Within a running render the live countdown
+(services/render_countdown.py) corrects after every call.
+
 Pure math on plain floats: no database, no torch, the same answer on every OS.
 """
 from __future__ import annotations
@@ -54,6 +69,18 @@ _CV_FOLDS = 5
 _EXTRAPOLATION_MARGIN = 0.10
 #: Newest cold calls per kind that set its overhead.
 _OVERHEAD_WINDOW = 10
+
+#: Recency: a call's evidence about the machine's current pace halves every
+#: this many seconds of wall-clock age (chosen on a real drifting Mac, see the
+#: module docstring and tests/test_render_fit_recency.py).
+PACE_HALF_LIFE_S = 120.0
+#: Prior weight (in calls) on "running at the long-run line": with no recent
+#: calls the pace is 1.
+_PACE_PRIOR = 0.5
+#: One call cannot move the pace by more than 2x either way.
+_PACE_CLIP = math.log(2.0)
+#: Calls older than four half-lives no longer shape the recent spread.
+_RECENT_MIN_WEIGHT = 1 / 16
 
 #: omnivoice/models/omnivoice.py OmniVoiceGenerationConfig defaults.
 OMNIVOICE_CHUNK_THRESHOLD_S = 30.0
@@ -94,6 +121,8 @@ class Sample:
     ref_seconds: float = 0.0
     #: None for a warm call; "load" or "voice" for a cold one.
     cold: Optional[str] = None
+    #: When it finished (epoch seconds); None: its age is unknown.
+    created_at: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -138,6 +167,11 @@ class CallModel:
     length_min: float
     length_max: float
     overheads: dict = field(default_factory=dict)
+    #: The machine's current speed against the line (1.3: 30% slower now).
+    pace: float = 1.0
+    #: The range, after recent scatter has had its say.
+    low_ratio: Optional[float] = None
+    high_ratio: Optional[float] = None
 
     @property
     def rough(self) -> bool:
@@ -150,10 +184,12 @@ class CallModel:
     def predict(self, audio_seconds: float, ref_seconds: float = 0.0) -> CallPrediction:
         passes = self.shape.passes(audio_seconds)
         length = self.shape.pass_length(audio_seconds, ref_seconds)
-        seconds = passes * self.fit.predict(length)
+        seconds = passes * self.fit.predict(length) * self.pace
         extrapolated = (length < self.length_min * (1 - _EXTRAPOLATION_MARGIN)
                         or length > self.length_max * (1 + _EXTRAPOLATION_MARGIN))
-        low, high = seconds * self.fit.low_ratio, seconds * self.fit.high_ratio
+        low_ratio = self.fit.low_ratio if self.low_ratio is None else self.low_ratio
+        high_ratio = self.fit.high_ratio if self.high_ratio is None else self.high_ratio
+        low, high = seconds * low_ratio, seconds * high_ratio
         if extrapolated:
             low, high = low * ROUGH_LOW, high * ROUGH_HIGH
         return CallPrediction(seconds, low, high, extrapolated)
@@ -261,8 +297,55 @@ def _overheads(cold: Sequence[Sample], fit: Fit, shape: CallShape,
             for kind, v in extra.items() if v}
 
 
+def _weighted_percentile(pairs: Sequence[tuple[float, float]], pct: float) -> float:
+    """Percentile of ``(value, weight)`` pairs (weights need not sum to 1)."""
+    ordered = sorted(pairs)
+    total = sum(w for _, w in ordered)
+    target = total * pct / 100.0
+    acc = 0.0
+    for value, weight in ordered:
+        acc += weight
+        if acc >= target:
+            return value
+    return ordered[-1][0]
+
+
+def _recent_pace(used: Sequence[Sample], points: Sequence[tuple[float, float]], fit: Fit,
+                 now: Optional[float]) -> tuple[float, Optional[float], Optional[float]]:
+    """``(pace, recent_low, recent_high)`` from the calls' age-weighted errors.
+
+    ``pace`` multiplies the line: exp of the weighted mean log(observed /
+    predicted), clipped per call, shrunk toward 1 by a prior of half a call.
+    ``recent_low`` / ``recent_high`` are the 10th / 90th percentile of the
+    recent calls' ratios to the paced line (None without recent calls), so a
+    machine that is behaving erratically right now gets a wider range.
+    """
+    if now is None:
+        return 1.0, None, None
+    logs: list[tuple[float, float]] = []
+    for sample, (x, y) in zip(used, points):
+        if sample.created_at is None or not (_finite_positive(x) and _finite_positive(y)):
+            continue
+        predicted = fit.predict(x)
+        if predicted <= 0:
+            continue
+        age = max(0.0, now - float(sample.created_at))
+        weight = 2.0 ** (-age / PACE_HALF_LIFE_S)
+        logs.append((math.log(y / predicted), weight))
+    total = sum(w for _, w in logs)
+    if total <= 0:
+        return 1.0, None, None
+    clipped = sum(w * max(-_PACE_CLIP, min(_PACE_CLIP, v)) for v, w in logs)
+    log_pace = clipped / (total + _PACE_PRIOR)
+    recent = [(math.exp(v - log_pace), w) for v, w in logs if w >= _RECENT_MIN_WEIGHT]
+    if not recent:
+        return math.exp(log_pace), None, None
+    return (math.exp(log_pace), _weighted_percentile(recent, 10),
+            _weighted_percentile(recent, 90))
+
+
 def fit_model(samples: Sequence[Sample], num_step: Optional[int],
-              shape: CallShape = PLAIN) -> Optional[CallModel]:
+              shape: CallShape = PLAIN, *, now: Optional[float] = None) -> Optional[CallModel]:
     """The model for calls at ``num_step``, from one engine+device's samples.
 
     ``samples`` is newest first. Measured when this exact steps bucket has
@@ -272,6 +355,9 @@ def fit_model(samples: Sequence[Sample], num_step: Optional[int],
     ``s`` steps with length ``L`` costs what length ``L * s / num_step`` costs
     at ``num_step``, which scales ``b`` by the steps ratio and leaves the
     per-pass cost ``a`` alone. ``None`` below that: cold start.
+
+    ``now`` (epoch seconds) turns on recency: the machine's current pace from
+    the recent calls, and a range widened by their scatter.
     """
     warm = [s for s in samples if not s.cold]
     cold = [s for s in samples if s.cold]
@@ -285,8 +371,12 @@ def fit_model(samples: Sequence[Sample], num_step: Optional[int],
     if fit is None:
         return None
     lengths = [x for x, _ in points if _finite_positive(x)]
+    pace, recent_low, recent_high = _recent_pace(used, points, fit, now)
+    low = fit.low_ratio if recent_low is None else min(fit.low_ratio, recent_low)
+    high = fit.high_ratio if recent_high is None else max(fit.high_ratio, recent_high)
     return CallModel(shape=shape, fit=fit, length_min=min(lengths), length_max=max(lengths),
-                     overheads=_overheads(cold, fit, shape, num_step))
+                     overheads=_overheads(cold, fit, shape, num_step), pace=pace,
+                     low_ratio=low, high_ratio=high)
 
 
 def fit_bucket(samples: Sequence[Sample], num_step: Optional[int]) -> Optional[Fit]:
@@ -296,7 +386,8 @@ def fit_bucket(samples: Sequence[Sample], num_step: Optional[int]) -> Optional[F
 
 
 __all__ = [
-    "FIT_WINDOW", "MIN_SAMPLES", "OMNIVOICE", "PLAIN", "ROUGH_HIGH", "ROUGH_LOW",
+    "FIT_WINDOW", "MIN_SAMPLES", "OMNIVOICE", "PACE_HALF_LIFE_S", "PLAIN", "ROUGH_HIGH",
+    "ROUGH_LOW",
     "CallModel", "CallPrediction", "CallShape", "Fit", "Overhead", "Sample",
     "fit_bucket", "fit_line", "fit_model", "percentile",
 ]

@@ -313,8 +313,8 @@ def samples_for(engine: str, device: str, num_step: Optional[int]) -> list[Sampl
     calls included (the fit keeps them out of the line and measures them)."""
     conn = _connect()
     try:
-        cols = ("SELECT id, audio_seconds, wall_seconds, num_step, ref_seconds, cold "
-                "FROM render_timings ")
+        cols = ("SELECT id, audio_seconds, wall_seconds, num_step, ref_seconds, cold, "
+                "created_at FROM render_timings ")
         rows = conn.execute(
             cols + "WHERE engine = ? AND device = ? ORDER BY id DESC LIMIT ?",
             (engine, device, FIT_WINDOW),
@@ -331,7 +331,7 @@ def samples_for(engine: str, device: str, num_step: Optional[int]) -> list[Sampl
         conn.close()
     unique = {row[0]: row for row in rows}
     return [Sample(audio_seconds=r[1], wall_seconds=r[2], num_step=r[3],
-                   ref_seconds=r[4] or 0.0, cold=r[5] or None)
+                   ref_seconds=r[4] or 0.0, cold=r[5] or None, created_at=r[6])
             for _, r in sorted(unique.items(), key=lambda item: item[0], reverse=True)]
 
 

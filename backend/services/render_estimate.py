@@ -19,6 +19,7 @@ Basis:
 """
 from __future__ import annotations
 
+import time
 from typing import Optional, Sequence
 
 from services import render_fit, render_timing
@@ -56,7 +57,7 @@ def estimate(*, engine: str, device: str, num_step: Optional[int],
              warmups: Optional[Sequence[Sequence[str]]] = None) -> dict:
     """Price ``parts`` with the model for ``(engine, device, num_step)``."""
     samples = render_timing.samples_for(engine, device, num_step)
-    model = render_fit.fit_model(samples, num_step, shape)
+    model = render_fit.fit_model(samples, num_step, shape, now=time.time())
     warmups = list(warmups or [[] for _ in parts])
     calls = sum(len(part) for part in parts)
     known = all(audio is not None for part in parts for audio, _ in part)
@@ -104,6 +105,7 @@ def estimate(*, engine: str, device: str, num_step: Optional[int],
         "low": _round(totals[1]),
         "high": _round(totals[2]),
         "warmup_seconds": _round(warmup),
+        "pace": round(model.pace, 2),
         "parts": out_parts,
     }
 
