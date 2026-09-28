@@ -51,6 +51,10 @@ def client(db, monkeypatch):
         raise AssertionError("an estimate must never load a model")
 
     monkeypatch.setattr(model_manager, "get_model", no_model)
+    # The engine is loaded and has rendered here; tests of cold starts flip it.
+    from services import render_warmth
+
+    monkeypatch.setattr(render_warmth, "engine_is_warm", lambda cls: True)
     monkeypatch.setattr(tts_backend.KittenTTSBackend, "generate",
                         lambda *a, **k: pytest.fail("an estimate must never synthesize"))
     app = FastAPI()
@@ -58,10 +62,12 @@ def client(db, monkeypatch):
     return TestClient(app)
 
 
-def _seed(engine, device, num_step, points, speed=1.0, chars_per_second=15.0):
+def _seed(engine, device, num_step, points, speed=1.0, chars_per_second=15.0,
+          ref_seconds=None, cold=None):
     for audio, wall in points:
         assert render_timing.record(engine, device, num_step,
-                                    int(audio * chars_per_second), audio, wall, speed)
+                                    int(audio * chars_per_second), audio, wall, speed,
+                                    ref_seconds, cold)
 
 
 _LONG = " ".join(["Every sentence here carries enough words to fill a chunk."] * 40)
@@ -177,7 +183,7 @@ def test_two_samples_are_still_cold_start(client):
 
 def test_three_samples_give_a_measured_estimate(client):
     # 1 s per call + 0.5 s per audio second; 15 chars per audio second.
-    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (2.0, 4.0, 8.0, 16.0)])
+    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (2.0, 4.0, 8.0, 16.0, 24.0)])
     text = "x" * 300  # one call, 20 s of audio at the learned rate
     body = client.post("/render/estimate", json={"surface": "generate", "text": text,
                                                  "max_chunk_chars": 0}).json()
@@ -250,7 +256,7 @@ def test_uploaded_reference_pace_is_used(client, monkeypatch):
 
 
 def test_audiobook_parts_follow_the_chapters(client):
-    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (2.0, 4.0, 8.0)])
+    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (0.2, 2.0, 4.0, 8.0)])
     body = client.post("/render/estimate", json={
         "surface": "audiobook", "text": _SCRIPT, "default_voice": None}).json()
     assert body["basis"] == "measured"
@@ -297,3 +303,73 @@ def test_estimates_are_identical_across_devices_only_in_behaviour(client, monkey
     _seed("kittentts", "cuda", None, [(x, 0.1 * x) for x in (2.0, 4.0, 8.0)])
     body = client.post("/render/estimate", json={"surface": "generate", "text": "Hi."}).json()
     assert body["device"] == "cpu" and body["basis"] == "none"
+
+
+# ── Cold starts: added only when the render will pay them ─────────────────────
+
+
+def test_an_unloaded_engine_adds_the_measured_load_cost(client, monkeypatch):
+    from services import render_warmth
+
+    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (2.0, 4.0, 8.0)])
+    _seed("kittentts", "cpu", None, [(4.0, 3.0 + 9.0)], cold="load")  # 9 s of load
+    body = {"surface": "generate", "text": "x" * 120, "max_chunk_chars": 0}
+    warm = client.post("/render/estimate", json=body).json()
+    monkeypatch.setattr(render_warmth, "engine_is_warm", lambda cls: False)
+    cold = client.post("/render/estimate", json=body).json()
+    assert warm["basis"] == cold["basis"] == "measured"
+    assert warm["samples"] == cold["samples"] == 3  # the cold call is not in the line
+    assert warm["warmup_seconds"] == 0
+    assert cold["warmup_seconds"] == pytest.approx(9.0, abs=0.2)
+    assert cold["seconds"] == pytest.approx(warm["seconds"] + 9.0, abs=0.2)
+    assert cold["parts"][0]["seconds"] == cold["seconds"]
+
+
+def test_an_unmeasured_load_cost_widens_the_range_instead(client, monkeypatch):
+    from services import render_warmth
+
+    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (2.0, 4.0, 8.0)])
+    body = {"surface": "generate", "text": "x" * 120, "max_chunk_chars": 0}
+    warm = client.post("/render/estimate", json=body).json()
+    monkeypatch.setattr(render_warmth, "engine_is_warm", lambda cls: False)
+    cold = client.post("/render/estimate", json=body).json()
+    assert cold["basis"] == "rough"
+    assert cold["seconds"] == warm["seconds"]
+    assert cold["high"] > warm["high"] + 0.9 * warm["seconds"]
+
+
+def test_a_long_unranked_reference_adds_the_voice_cost_once(client, db, tmp_path, monkeypatch):
+    import numpy as np
+    import soundfile as sf
+    from services import tts_backend
+
+    monkeypatch.setattr(tts_backend, "active_backend_id", lambda: "omnivoice")
+    monkeypatch.setattr(tts_backend, "get_backend_class",
+                        lambda engine_id: tts_backend.OmniVoiceBackend)
+    monkeypatch.setattr(tts_backend, "_recall_passage", lambda path: None)
+    ref = tmp_path / "long.wav"
+    sf.write(ref, np.zeros(24000 * 40, dtype=np.float32), 24000)
+    with sqlite3.connect(db) as conn:
+        conn.execute("INSERT INTO voice_profiles (id, name, ref_audio_path, ref_text, kind) "
+                     "VALUES ('long', 'Long', ?, 'A long reference transcript.', 'clone')",
+                     (str(ref),))
+    _seed("omnivoice", "cpu", 32, [(x, 2 + 0.4 * (x + 15)) for x in (3.0, 6.0, 12.0)],
+          ref_seconds=15.0)
+    _seed("omnivoice", "cpu", 32, [(6.0, 2 + 0.4 * 21 + 20.0)], ref_seconds=15.0, cold="voice")
+    body = client.post("/render/estimate", json={
+        "surface": "audiobook", "text": "# One\nFirst chapter.\n# Two\nSecond chapter.",
+        "default_voice": "long", "num_step": 32}).json()
+    assert body["warmup_seconds"] == pytest.approx(20.0, abs=0.3)
+    first, second = body["parts"]
+    # Paid once, in the chapter where the voice is first heard.
+    assert first["seconds"] > second["seconds"] + 19
+
+
+def test_a_call_longer_than_anything_measured_is_rough(client):
+    _seed("kittentts", "cpu", None, [(x, 1 + 0.5 * x) for x in (2.0, 4.0, 8.0)])
+    inside = client.post("/render/estimate", json={
+        "surface": "generate", "text": "x" * 90, "max_chunk_chars": 0}).json()
+    beyond = client.post("/render/estimate", json={
+        "surface": "generate", "text": "x" * 600, "max_chunk_chars": 0}).json()
+    assert inside["basis"] == "measured" and beyond["basis"] == "rough"
+    assert beyond["high"] / beyond["seconds"] > inside["high"] / inside["seconds"]

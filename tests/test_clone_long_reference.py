@@ -459,7 +459,9 @@ def test_generate_probes_reference_length_off_the_event_loop(
     res = _post(client, fake, _wav(tmp_path / "long.wav", 25))
 
     assert res.status_code == 200, res.text
-    assert on_loop == [False]
+    # The route probes once; the render-time recorder may measure the same clip
+    # again on the GPU worker. Neither may run on the request loop.
+    assert on_loop and not any(on_loop)
 
 
 def test_generate_short_upload_is_still_transcribed(client, fake_engine, tmp_path):

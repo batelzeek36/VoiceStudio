@@ -97,3 +97,26 @@ def test_startup_self_heal_creates_the_table(tmp_path, monkeypatch, missing):
         assert conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (missing,)
         ).fetchone()
+
+
+def test_an_early_render_timings_table_gains_the_new_columns(tmp_path, monkeypatch):
+    """Dev databases created from an earlier cut of 0013 (before ref_seconds and
+    cold) converge on the current table through the additive reconcile."""
+    import core.db as core_db
+
+    db = tmp_path / "early.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute(
+            "CREATE TABLE render_timings (id INTEGER PRIMARY KEY, engine TEXT NOT NULL, "
+            "device TEXT NOT NULL, num_step INTEGER, text_chars INTEGER NOT NULL, "
+            "audio_seconds REAL NOT NULL, wall_seconds REAL NOT NULL, speed REAL, "
+            "created_at REAL NOT NULL)")
+        conn.execute("INSERT INTO render_timings (engine, device, text_chars, audio_seconds, "
+                     "wall_seconds, created_at) VALUES ('omnivoice', 'mps', 10, 1.0, 2.0, 0)")
+    monkeypatch.setattr(core_db, "get_db", lambda: sqlite3.connect(str(db)))
+    core_db.ensure_schema()
+    with sqlite3.connect(db) as conn:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(render_timings)")}
+        row = conn.execute("SELECT ref_seconds, cold FROM render_timings").fetchone()
+    assert {"ref_seconds", "cold"} <= cols
+    assert row == (None, None)

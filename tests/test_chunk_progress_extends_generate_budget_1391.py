@@ -248,9 +248,9 @@ def test_every_multi_part_render_loop_reports_progress():
                     and len(n.args) > 1):
                 f = n.args[1]  # instrumentation still calls the same generator
             elif (isinstance(f, ast.Attribute) and f.attr == "call"
-                    and len(n.args) > 2):
-                # render_timing: timing.call(text, speed, generator, ...)
-                f = n.args[2]
+                    and len(n.args) > 3):
+                # render_timing: timing.call(text, speed, reference, generator, ...)
+                f = n.args[3]
             if isinstance(f, ast.Attribute) and f.attr == "generate":
                 return True
         return False

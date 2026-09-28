@@ -465,7 +465,7 @@ def synthesize_chapter(
                     for c in chunks:
                         _stop_if_abandoned()
                         rendered.append((timing or UNTIMED).call(
-                            c, span.speed, synth, c, span.voice_id, span.speed))
+                            c, span.speed, span.voice_id, synth, c, span.voice_id, span.speed))
                         _note_chunk_done()
                     # Deliberately NOT pre-filtered (#1330). Dropping the empties
                     # here both hid them — a chapter would come back short with

@@ -7,8 +7,9 @@ Create Date: 2026-09-27 00:00:00.000000
 Adds ``render_timings`` (docs/adr/render-time-estimate.md): one row per
 completed synthesis call with the engine id, the resolved device class, the
 unmasking steps (NULL for engines without a steps control), the characters
-synthesized, the audio produced, the wall time and the speed. Numbers and
-identifiers only: no text, voice or path. The render-time estimate fits this
+synthesized, the audio produced, the wall time, the speed, the reference audio's
+length and whether the call was cold (``load`` / ``voice``, NULL when warm).
+Numbers and identifiers only: no text, voice or path. The render-time estimate fits this
 machine's own speed from these rows.
 
 Additive + idempotent (guarded by sqlite_master) like 0008 and 0012, so a
@@ -38,6 +39,8 @@ _CREATE_TABLE = """
         audio_seconds REAL NOT NULL,
         wall_seconds REAL NOT NULL,
         speed REAL,
+        ref_seconds REAL,
+        cold TEXT,
         created_at REAL NOT NULL
     )
 """

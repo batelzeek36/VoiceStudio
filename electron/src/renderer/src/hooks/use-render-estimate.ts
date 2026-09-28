@@ -29,6 +29,9 @@ export function useRenderEstimate(request: RenderEstimateRequest | null): Render
       fetchRenderEstimate(JSON.parse(debounced) as RenderEstimateRequest, signal),
     enabled: debounced !== '',
     staleTime: 60_000,
+    // Whether the engine is loaded (or was unloaded for idleness) changes the
+    // estimate without any input changing: re-ask while the page is open.
+    refetchInterval: 60_000,
     retry: false,
     placeholderData: keepPreviousData,
   });

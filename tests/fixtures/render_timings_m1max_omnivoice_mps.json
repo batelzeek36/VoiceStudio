@@ -1,0 +1,16 @@
+{
+  "about": "Eight real render_timings rows, numbers only: one M1 Max, OmniVoice in its MPS sidecar, 64 steps, Voice cloning /generate, 2026-09-27. Rows 1-4 used a saved voice with an 11.35 s reference, rows 5-8 one with a 14.95 s reference. Row 1 was the first call after the sidecar loaded the model. Row 8 ran while other heavy work shared the machine.",
+  "engine": "omnivoice",
+  "device": "mps",
+  "num_step": 64,
+  "rows": [
+    {"audio_seconds": 4.56, "wall_seconds": 22.03, "text_chars": 53, "ref_seconds": 11.35, "cold": "load"},
+    {"audio_seconds": 6.48, "wall_seconds": 16.46, "text_chars": 72, "ref_seconds": 11.35, "cold": null},
+    {"audio_seconds": 11.84, "wall_seconds": 21.40, "text_chars": 139, "ref_seconds": 11.35, "cold": null},
+    {"audio_seconds": 32.04, "wall_seconds": 59.84, "text_chars": 372, "ref_seconds": 11.35, "cold": null},
+    {"audio_seconds": 8.2, "wall_seconds": 21.90, "text_chars": 123, "ref_seconds": 14.95, "cold": null},
+    {"audio_seconds": 21.4, "wall_seconds": 35.01, "text_chars": 318, "ref_seconds": 14.95, "cold": null},
+    {"audio_seconds": 37.12, "wall_seconds": 80.85, "text_chars": 552, "ref_seconds": 14.95, "cold": null},
+    {"audio_seconds": 44.3, "wall_seconds": 144.55, "text_chars": 654, "ref_seconds": 14.95, "cold": null}
+  ]
+}

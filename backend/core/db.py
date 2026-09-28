@@ -211,7 +211,9 @@ _BASE_SCHEMA = """
 
     -- Render-time estimate (docs/adr/render-time-estimate.md): one row per
     -- completed synthesis call, so estimates come from THIS machine's own
-    -- speed. Numbers and identifiers only (no text, voice or path); kept to
+    -- speed; `cold` marks a first call on a fresh engine ('load') or on an
+    -- unranked long reference ('voice'). Numbers and identifiers only (no
+    -- text, voice or path); kept to
     -- the newest rows per (engine, device, num_step) by
     -- services/render_timing.py; never sent anywhere. Existing DBs get it via
     -- alembic 0013_render_timings (dual-path discipline).
@@ -224,6 +226,8 @@ _BASE_SCHEMA = """
         audio_seconds REAL NOT NULL,
         wall_seconds REAL NOT NULL,
         speed REAL,
+        ref_seconds REAL,
+        cold TEXT,
         created_at REAL NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_render_timings_bucket
