@@ -620,7 +620,14 @@ def _build_synth(
         return {"mode": "omnivoice", "resolve": resolve, "engine_id": engine_id,
                 "get_model": get_model, "language": language, "opts": opts}
 
-    backend = cls()
+    # The process-wide engine instance /generate uses, not a new one per
+    # chapter: every chapter builds its synth, and a fresh adapter per chapter
+    # re-loaded its weights each time. For a subprocess engine (OmniVoice on
+    # MPS runs in one) it spawned a new sidecar and model per chapter, while
+    # the previous chapters' sidecars stayed resident until the idle reaper.
+    from services.tts_backend import get_engine_instance
+
+    backend = get_engine_instance(cls)
     native_proxy = bool(getattr(cls, "supports_native_omnivoice_controls", False))
     extra = (_omnivoice_sampling_kwargs(opts) if native_proxy
              else _generic_extra_kwargs(opts))
