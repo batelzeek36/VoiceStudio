@@ -16,6 +16,10 @@ metadata and the backend fallback mirror it. Archived Tauri manifests stay froze
 - Render time is estimated from your own machine's renders: beside Synthesize, after the Stories and Audiobook runtime, and as a live countdown; your first few renders calibrate it
 - Renders sent to a remote GPU worker are estimated from that worker's own end-to-end times, and an offline worker is named instead of a number
 
+### Fixed
+
+- Sortformer speaker diarisation reads as installed right after its download on macOS and Linux, instead of asking for the model bundle again
+
 ## [0.5.6] — 2026-09-23
 
 **VoiceStudio now talks to your other tools.** Answer Twilio phone calls in a saved voice, and connect Claude Code, Cursor, Codex CLI and the OpenAI Agents SDK to VoiceStudio with copyable setup that works, including in Docker, where MCP previously returned HTTP 405. Integration cards now say plainly which ones work with VoiceStudio and which are external links.

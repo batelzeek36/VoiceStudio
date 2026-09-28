@@ -87,3 +87,87 @@ def test_sortformer_status_rejects_corrupt_model_without_exposing_path(
     assert status["installed"] is False
     assert status["reason"] == "Repair the installed Sortformer model bundle"
     assert str(model) not in repr(status)
+
+
+# ── A Hugging Face cache entry is a symlink to an extensionless blob ─────────
+
+
+def _hf_cache_entry(tmp_path, contents=b"GGUF" + b"\0" * 16):
+    """``snapshots/<rev>/<dir>/<name>.gguf`` -> ``blobs/<sha256>`` (no
+    extension), the way huggingface_hub lays the cache out on macOS/Linux."""
+    import pytest
+
+    blob = tmp_path / "blobs" / ("a" * 64)
+    blob.parent.mkdir(parents=True)
+    blob.write_bytes(contents)
+    entry = tmp_path / "snapshots" / "rev" / diarization_runtime.SORTFORMER_FILE
+    entry.parent.mkdir(parents=True)
+    try:
+        entry.symlink_to(blob)
+    except (OSError, NotImplementedError):
+        pytest.skip("this filesystem cannot create symlinks")
+    return entry
+
+
+def _ready_runtime(monkeypatch, tmp_path):
+    server = tmp_path / ("audiocpp_server.exe" if os.name == "nt" else "audiocpp_server")
+    cli = tmp_path / ("audiocpp_cli.exe" if os.name == "nt" else "audiocpp_cli")
+    server.write_bytes(b"server")
+    cli.write_bytes(b"cli")
+    cli.chmod(0o755)
+    from engines.audiocpp import bootstrap
+
+    monkeypatch.setattr(bootstrap, "resolve_server_binary", lambda: server)
+
+
+def test_a_symlinked_cache_entry_is_an_installed_model(monkeypatch, tmp_path):
+    """The resolved path is the extensionless blob; the model is still installed."""
+    entry = _hf_cache_entry(tmp_path)
+    assert entry.resolve().suffix == ""
+    import huggingface_hub
+
+    monkeypatch.delenv("OMNIVOICE_DIARIZATION_MODEL", raising=False)
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", lambda **kw: str(entry))
+    assert diarization_runtime.sortformer_model_path() == entry  # named, not resolved
+    _ready_runtime(monkeypatch, tmp_path)
+
+    assert diarization_runtime.sortformer_status()["installed"] is True
+
+
+def test_a_symlinked_configured_model_is_judged_by_its_name(monkeypatch, tmp_path):
+    entry = _hf_cache_entry(tmp_path)
+    monkeypatch.setenv("OMNIVOICE_DIARIZATION_MODEL", str(entry))
+    assert diarization_runtime.sortformer_model_path() == entry
+    _ready_runtime(monkeypatch, tmp_path)
+
+    assert diarization_runtime.sortformer_status()["model_installed"] is True
+
+
+def test_a_symlink_to_a_non_gguf_blob_is_broken_and_a_misnamed_file_is_missing(
+    monkeypatch, tmp_path
+):
+    entry = _hf_cache_entry(tmp_path, contents=b"nope")
+    monkeypatch.setattr(diarization_runtime, "sortformer_model_path", lambda: entry)
+    assert diarization_runtime.sortformer_status()["reason"] == (
+        "Repair the installed Sortformer model bundle"
+    )
+    misnamed = _gguf(tmp_path / "sortformer.bin")
+    monkeypatch.setattr(diarization_runtime, "sortformer_model_path", lambda: misnamed)
+    assert diarization_runtime.sortformer_status()["reason"] == (
+        "Install the Sortformer model bundle"
+    )
+
+
+def test_native_sortformer_accepts_the_symlinked_entry_and_passes_its_name(
+    monkeypatch, tmp_path
+):
+    import huggingface_hub
+    from services import diarization_native
+
+    entry = _hf_cache_entry(tmp_path)
+    monkeypatch.delenv("OMNIVOICE_DIARIZATION_MODEL", raising=False)
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", lambda **kw: str(entry))
+    _ready_runtime(monkeypatch, tmp_path)
+
+    native = diarization_native.NativeSortformer()
+    assert native.model == entry and native.model.suffix == ".gguf"

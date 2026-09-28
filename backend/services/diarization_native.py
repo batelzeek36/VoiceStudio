@@ -57,7 +57,7 @@ class NativeSortformer:
 
     def __init__(self):
         from engines.audiocpp.bootstrap import resolve_server_binary
-        from services.diarization_runtime import sortformer_model_path
+        from services.diarization_runtime import check_sortformer_model, sortformer_model_path
 
         try:
             self.model = sortformer_model_path()
@@ -65,11 +65,13 @@ class NativeSortformer:
             raise FileNotFoundError(
                 "Install the audio.cpp Sortformer model in Settings > Models > Diarisation"
             ) from exc
-        if not self.model.is_file() or self.model.suffix.lower() != ".gguf":
-            raise FileNotFoundError("The configured Sortformer GGUF is missing")
-        with self.model.open("rb") as model_file:
-            if model_file.read(4) != b"GGUF":
-                raise ValueError("The configured Sortformer model is not a GGUF file")
+        # Judged by its name, opened through its target (a Hugging Face cache
+        # entry is a symlink to an extensionless blob). The CLI gets the named
+        # ``.gguf`` path, as it always has.
+        try:
+            check_sortformer_model(self.model)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError("The configured Sortformer GGUF is missing") from exc
         server = resolve_server_binary()
         self.binary = server.with_name("audiocpp_cli.exe" if os.name == "nt" else "audiocpp_cli")
         if not self.binary.is_file():
