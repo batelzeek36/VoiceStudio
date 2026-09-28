@@ -5,7 +5,8 @@ calls, one list per progress unit the UI can see finish (one per chapter for
 longform, one for ``/generate``); each call is ``(audio_seconds,
 ref_seconds)``. ``warmups`` lists, per part, the cold costs the render will pay
 when it reaches that part: ``load`` when the engine is not loaded right now,
-``voice`` once for each long reference whose passage is not chosen yet.
+``voice`` for each call that will rank a long reference's passage. Each entry is
+a kind, paid by the part's first call, or ``(kind, position)`` naming the call.
 
 Basis:
 
@@ -20,7 +21,7 @@ Basis:
 from __future__ import annotations
 
 import time
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
 
 from services import render_fit, render_timing
 
@@ -30,6 +31,8 @@ REASON_REMOTE = "remote"
 REASON_NO_RATE = "no_rate"
 
 PlannedAudio = tuple[Optional[float], float]
+#: A cold cost: its kind (paid by the part's first call), or (kind, call index).
+Warmup = Union[str, tuple[str, int]]
 
 
 def _round(value: Optional[float]) -> Optional[float]:
@@ -54,12 +57,12 @@ def remote_estimate(*, engine: str, calls: int) -> dict:
 def estimate(*, engine: str, device: str, num_step: Optional[int],
              parts: Sequence[Sequence[PlannedAudio]],
              shape: render_fit.CallShape = render_fit.PLAIN,
-             warmups: Optional[Sequence[Sequence[str]]] = None,
+             warmups: Optional[Sequence[Sequence[Warmup]]] = None,
              detail: bool = False) -> dict:
     """Price ``parts`` with the model for ``(engine, device, num_step)``.
 
-    ``detail`` adds each part's ``call_seconds`` (its warm-up folded into its
-    first call), the plan a running render's live countdown follows."""
+    ``detail`` adds each part's ``call_seconds`` (each warm-up folded into the
+    call that pays it), the plan a running render's live countdown follows."""
     samples = render_timing.samples_for(engine, device, num_step)
     model = render_fit.fit_model(samples, num_step, shape, now=time.time())
     warmups = list(warmups or [[] for _ in parts])
@@ -82,27 +85,28 @@ def estimate(*, engine: str, device: str, num_step: Optional[int],
     out_parts = []
     for index, part in enumerate(parts):
         seconds = low = high = 0.0
-        first: Optional[float] = None
-        per_call: list[float] = []
+        predicted: list[float] = []
         for audio_seconds, ref_seconds in part:
             p = model.predict(audio_seconds, ref_seconds)
-            first = p.seconds if first is None else first
-            per_call.append(p.seconds)
+            predicted.append(p.seconds)
             seconds, low, high = seconds + p.seconds, low + p.low, high + p.high
             rough = rough or p.extrapolated
-        for kind in warmups[index] if index < len(warmups) else []:
+        per_call = list(predicted)
+        for entry in warmups[index] if index < len(warmups) else []:
+            kind, at = (entry, 0) if isinstance(entry, str) else entry
+            at = min(max(0, int(at)), len(predicted) - 1) if predicted else 0
             overhead = model.overheads.get(kind)
             if overhead is not None:
                 seconds, low, high = (seconds + overhead.typical, low + overhead.low,
                                       high + overhead.high)
                 warmup += overhead.typical
                 if per_call:
-                    per_call[0] += overhead.typical
+                    per_call[at] += overhead.typical
             else:
                 # Signal read, cost never measured here: no number to add, so
-                # allow up to one more first call and say it is rough.
+                # allow up to one more of the call that pays it and say it is rough.
                 rough = True
-                high += first or 0.0
+                high += predicted[at] if predicted else 0.0
         entry = {"calls": len(part), "seconds": _round(seconds)}
         if detail:
             entry["call_seconds"] = [round(c, 2) for c in per_call]

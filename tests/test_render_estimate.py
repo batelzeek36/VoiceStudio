@@ -338,24 +338,37 @@ def test_an_unmeasured_load_cost_widens_the_range_instead(client, monkeypatch):
     assert cold["high"] > warm["high"] + 0.9 * warm["seconds"]
 
 
-def test_a_long_unranked_reference_adds_the_voice_cost_once(client, db, tmp_path, monkeypatch):
+def _long_voice(db, tmp_path, monkeypatch, backend_cls):
+    """A saved voice with a 40 s reference, no prompt cached for it, and the
+    active engine resolving to ``backend_cls``."""
+    from collections import OrderedDict
+
     import numpy as np
     import soundfile as sf
     from services import tts_backend
 
     monkeypatch.setattr(tts_backend, "active_backend_id", lambda: "omnivoice")
-    monkeypatch.setattr(tts_backend, "get_backend_class",
-                        lambda engine_id: tts_backend.OmniVoiceBackend)
-    monkeypatch.setattr(tts_backend, "_recall_passage", lambda path: None)
+    monkeypatch.setattr(tts_backend, "get_backend_class", lambda engine_id: backend_cls)
+    monkeypatch.setattr(tts_backend, "_prompt_cache", OrderedDict())
+    monkeypatch.setenv("OMNIVOICE_PROMPT_DISK_CACHE", "0")
     ref = tmp_path / "long.wav"
     sf.write(ref, np.zeros(24000 * 40, dtype=np.float32), 24000)
     with sqlite3.connect(db) as conn:
         conn.execute("INSERT INTO voice_profiles (id, name, ref_audio_path, ref_text, kind) "
                      "VALUES ('long', 'Long', ?, 'A long reference transcript.', 'clone')",
                      (str(ref),))
-    _seed("omnivoice", "cpu", 32, [(x, 2 + 0.4 * (x + 15)) for x in (3.0, 6.0, 12.0)],
+    engine = render_timing.engine_key("omnivoice", backend_cls)
+    device = render_timing.device_class(backend_cls)
+    _seed(engine, device, 32, [(x, 2 + 0.4 * (x + 15)) for x in (3.0, 6.0, 12.0)],
           ref_seconds=15.0)
-    _seed("omnivoice", "cpu", 32, [(6.0, 2 + 0.4 * 21 + 20.0)], ref_seconds=15.0, cold="voice")
+    _seed(engine, device, 32, [(6.0, 2 + 0.4 * 21 + 20.0)], ref_seconds=15.0, cold="voice")
+    return str(ref)
+
+
+def test_a_long_unranked_reference_adds_the_voice_cost_once(client, db, tmp_path, monkeypatch):
+    from services import tts_backend
+
+    _long_voice(db, tmp_path, monkeypatch, tts_backend.OmniVoiceBackend)
     body = client.post("/render/estimate", json={
         "surface": "audiobook", "text": "# One\nFirst chapter.\n# Two\nSecond chapter.",
         "default_voice": "long", "num_step": 32}).json()
@@ -363,6 +376,55 @@ def test_a_long_unranked_reference_adds_the_voice_cost_once(client, db, tmp_path
     first, second = body["parts"]
     # Paid once, in the chapter where the voice is first heard.
     assert first["seconds"] > second["seconds"] + 19
+
+
+def test_a_cached_prompt_means_no_voice_cost(client, db, tmp_path, monkeypatch):
+    from services import tts_backend
+
+    ref = _long_voice(db, tmp_path, monkeypatch, tts_backend.OmniVoiceBackend)
+    tts_backend._prompt_cache[tts_backend._clone_prompt_key(ref, None, True)] = object()
+    body = client.post("/render/estimate", json={
+        "surface": "audiobook", "text": "# One\nFirst chapter.\n# Two\nSecond chapter.",
+        "default_voice": "long", "num_step": 32}).json()
+    assert body["warmup_seconds"] == 0.0
+    first, second = body["parts"]
+    # The chapters differ only by one character of text.
+    assert first["seconds"] == pytest.approx(second["seconds"], abs=1.0)
+
+
+def test_the_sidecar_pays_the_voice_cost_on_every_call(client, db, tmp_path, monkeypatch):
+    """v0.5.6's OmniVoice sidecar ranks a long reference inside every call, and
+    the live countdown's plan puts each cost on the call that pays it."""
+    from engines.omnivoice_subprocess import OmniVoiceMPSSubprocessBackend
+
+    _long_voice(db, tmp_path, monkeypatch, OmniVoiceMPSSubprocessBackend)
+    body = client.post("/render/estimate", json={
+        "surface": "audiobook", "text": "# One\nFirst chapter.\n# Two\nSecond chapter.",
+        "default_voice": "long", "num_step": 32}).json()
+    assert body["warmup_seconds"] == pytest.approx(40.0, abs=0.6)
+    first, second = body["parts"]
+    # Each chapter's single call pays it; they differ by one character of text.
+    assert first["seconds"] == pytest.approx(second["seconds"], abs=1.0)
+    assert min(first["seconds"], second["seconds"]) > 20
+
+
+def test_each_warmup_lands_on_the_call_that_pays_it():
+    from services import render_estimate as estimator
+
+    _seed("omnivoice", "cpu", 32, [(x, 2 + 0.4 * x) for x in (3.0, 6.0, 12.0)])
+    _seed("omnivoice", "cpu", 32, [(6.0, 2 + 0.4 * 6 + 10.0)], cold="voice")
+    body = estimator.estimate(engine="omnivoice", device="cpu", num_step=32,
+                              parts=[[(6.0, 0.0), (6.0, 0.0), (6.0, 0.0)]],
+                              warmups=[[("voice", 1), ("voice", 2)]], detail=True)
+    calls = body["parts"][0]["call_seconds"]
+    assert calls[0] == pytest.approx(4.4, abs=0.2)
+    assert calls[1] == pytest.approx(calls[0] + 10.0, abs=0.3)
+    assert calls[2] == pytest.approx(calls[1], abs=0.01)
+    # A bare kind is still paid by the part's first call.
+    legacy = estimator.estimate(engine="omnivoice", device="cpu", num_step=32,
+                                parts=[[(6.0, 0.0), (6.0, 0.0)]], warmups=[["voice"]],
+                                detail=True)["parts"][0]["call_seconds"]
+    assert legacy[0] == pytest.approx(legacy[1] + 10.0, abs=0.3)
 
 
 def test_a_call_longer_than_anything_measured_is_rough(client):

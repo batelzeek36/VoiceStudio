@@ -188,8 +188,10 @@ def test_for_render_never_raises():
 def test_recording_stays_out_of_analytics_and_bug_reports():
     """ADR: the rows never leave the machine."""
     root = Path(__file__).resolve().parents[1]
+    # v0.5.6: the renderer's analytics live in frontend/src/utils/analytics.ts
+    # (electron/src/shared/utils/analytics.ts upstream).
     for rel in ("backend/core/analytics.py", "backend/core/diagnostic_bundle.py",
-                "electron/src/shared/utils/analytics.ts"):
+                "frontend/src/utils/analytics.ts"):
         assert "render_timing" not in (root / rel).read_text(encoding="utf-8"), rel
 
 
@@ -343,32 +345,101 @@ def test_a_reloaded_native_model_is_cold(timing_db, fresh_warmth):
     assert [r["cold"] for r in _rows(timing_db)] == ["load", None, "load"]
 
 
-def test_first_call_on_an_unranked_long_reference_is_voice_cold(
-        timing_db, fresh_warmth, tmp_path, monkeypatch):
+@pytest.fixture
+def empty_prompt_cache(monkeypatch):
+    """No encoded clone prompt in memory or on disk (v0.5.6 keeps a long
+    reference's chosen passage only inside its cached prompt)."""
+    from collections import OrderedDict
+
+    from services import tts_backend
+
+    monkeypatch.setattr(tts_backend, "_prompt_cache", OrderedDict())
+    monkeypatch.setenv("OMNIVOICE_PROMPT_DISK_CACHE", "0")
+    return tts_backend
+
+
+def _refs(tmp_path):
     import numpy as np
     import soundfile as sf
-    from services import tts_backend
 
     long_ref = tmp_path / "long.wav"
     sf.write(long_ref, np.zeros(24000 * 40, dtype=np.float32), 24000)
     short_ref = tmp_path / "short.wav"
     sf.write(short_ref, np.zeros(24000 * 9, dtype=np.float32), 24000)
-    chosen = set()
-    monkeypatch.setattr(tts_backend, "_recall_passage",
-                        lambda path: (0, "words") if path in chosen else None)
+    return str(long_ref), str(short_ref)
+
+
+def test_first_call_on_an_uncached_long_reference_is_voice_cold(
+        timing_db, fresh_warmth, tmp_path, empty_prompt_cache):
+    tts_backend = empty_prompt_cache
+    long_ref, short_ref = _refs(tmp_path)
     timing = render_timing.SynthesisTiming("omnivoice", "cuda", 16, 1000,
                                            backend_cls=tts_backend.OmniVoiceBackend)
 
     def synth(ref):
-        chosen.add(ref)  # the call ranks and remembers the passage
+        # The call encodes the prompt (ranking a long reference's windows) and
+        # caches it, exactly as tts_backend._get_clone_prompt does.
+        tts_backend._prompt_cache[tts_backend._clone_prompt_key(ref, None, True)] = object()
         return torch.zeros(1, 1000)
 
-    for ref in (str(long_ref), str(long_ref), str(short_ref)):
+    for ref in (long_ref, long_ref, short_ref):
         timing.call("text", None, ref, synth, ref)
     rows = _rows(timing_db)
     assert [r["cold"] for r in rows] == ["voice", None, None]
     # A long reference is conditioned on its 15 s window; a short one whole.
     assert [r["ref_seconds"] for r in rows] == [15.0, 15.0, pytest.approx(9.0)]
+
+
+def test_a_prompt_saved_on_disk_counts_as_a_chosen_passage(
+        fresh_warmth, tmp_path, empty_prompt_cache, monkeypatch):
+    """After a restart the disk layer serves the prompt: no ranking, no cold."""
+    import os
+
+    from core.config import DATA_DIR
+
+    tts_backend = empty_prompt_cache
+    monkeypatch.setenv("OMNIVOICE_PROMPT_DISK_CACHE", "1")
+    long_ref, _ = _refs(tmp_path)
+    cache_dir = os.path.join(str(DATA_DIR), "prompt_cache")
+    path = tts_backend._prompt_disk_path(cache_dir, tts_backend._clone_prompt_key(long_ref, None, True))
+    if os.path.exists(path):
+        os.remove(path)
+    assert fresh_warmth.voice_needs_passage(tts_backend.OmniVoiceBackend, long_ref)
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(path, "wb") as fh:
+        fh.write(b"prompt")
+    try:
+        assert not fresh_warmth.voice_needs_passage(tts_backend.OmniVoiceBackend, long_ref)
+    finally:
+        os.remove(path)
+
+
+def test_checking_the_passage_never_creates_the_cache_directory(
+        fresh_warmth, tmp_path, empty_prompt_cache, monkeypatch):
+    from core import config
+
+    tts_backend = empty_prompt_cache
+    monkeypatch.setenv("OMNIVOICE_PROMPT_DISK_CACHE", "1")
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
+    long_ref, _ = _refs(tmp_path)
+    assert fresh_warmth.voice_needs_passage(tts_backend.OmniVoiceBackend, long_ref)
+    assert not (tmp_path / "data").exists()
+
+
+def test_every_sidecar_call_on_a_long_reference_ranks_again(
+        timing_db, fresh_warmth, tmp_path, empty_prompt_cache):
+    """v0.5.6's OmniVoice sidecar (the effective omnivoice on MPS) hands the
+    whole reference to the child's model.generate(), which has no prompt cache."""
+    from engines.omnivoice_subprocess import OmniVoiceMPSSubprocessBackend
+
+    long_ref, short_ref = _refs(tmp_path)
+    assert fresh_warmth.ranks_every_call(OmniVoiceMPSSubprocessBackend)
+    assert not fresh_warmth.ranks_every_call(empty_prompt_cache.OmniVoiceBackend)
+    timing = render_timing.SynthesisTiming("omnivoice", "mps", 64, 1000,
+                                           backend_cls=OmniVoiceMPSSubprocessBackend)
+    for ref in (long_ref, long_ref, short_ref):
+        timing.call("text", None, ref, lambda: torch.zeros(1, 1000))
+    assert [r["cold"] for r in _rows(timing_db)] == ["voice", "voice", None]
 
 
 def test_longform_voice_tokens_map_to_their_reference(timing_db, fresh_warmth, tmp_path):

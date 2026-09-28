@@ -79,22 +79,26 @@ def _pace(ref_audio: Optional[str], ref_text: Optional[str],
     )
 
 
-def _warmups(backend_cls, planned: list[list[render_plan.PlannedCall]], pace_of) -> list[list[str]]:
-    """The cold costs the render will pay, per part: loading the engine before
-    the first call when it is not loaded now, and ranking a long reference's
-    passage before that voice's first call (services/render_warmth.py)."""
-    warmups: list[list[str]] = [[] for _ in planned]
+def _warmups(backend_cls, planned: list[list[render_plan.PlannedCall]],
+             pace_of) -> list[list[tuple[str, int]]]:
+    """The cold costs the render will pay, per part, each with the position of
+    the call that pays it: loading the engine before the first call when it is
+    not loaded now, and ranking a long reference's passage before that voice's
+    first call, or before every call on an engine that remembers no passage
+    (services/render_warmth.py)."""
+    warmups: list[list[tuple[str, int]]] = [[] for _ in planned]
     if planned and not render_warmth.engine_is_warm(backend_cls):
-        warmups[0].append(render_warmth.LOAD)
+        warmups[0].append((render_warmth.LOAD, 0))
+    every_call = render_warmth.ranks_every_call(backend_cls)
     seen: set = set()
     for index, part in enumerate(planned):
-        for call in part:
+        for position, call in enumerate(part):
             pace = pace_of(call.voice)
             path = pace.path if pace is not None else None
-            if path and path not in seen:
+            if path and (every_call or path not in seen):
                 seen.add(path)
                 if render_warmth.voice_needs_passage(backend_cls, path):
-                    warmups[index].append(render_warmth.VOICE)
+                    warmups[index].append((render_warmth.VOICE, position))
     return warmups
 
 

@@ -11,16 +11,23 @@ call itself. Two kinds are detected, each from a signal the app already keeps:
   lazily loaded model attribute. A call on an object that has never finished a
   call here is cold; a sidecar that died or was reaped for idleness comes back
   as a new process, so its first call is cold again.
-* ``voice``: the first call on a reference longer than the engine's
-  ``max_ref_seconds`` whose 15 s passage has not been chosen yet. Choosing it
-  ranks the windows with the installed recognizer inside the call; the choice is
-  then remembered (``tts_backend._recall_passage``).
+* ``voice``: a call on a reference longer than the engine's ``max_ref_seconds``
+  that has to choose its 15 s passage. OmniVoice drops the whole-clip
+  transcript of such a reference and ranks every 15 s window with its
+  recognizer inside ``create_voice_clone_prompt`` (up to five ASR passes). In
+  this build (v0.5.6) the choice lives only inside the encoded clone prompt:
+  the in-process paths keep that prompt in ``tts_backend``'s prompt cache
+  (memory, then disk), so only the call that encodes it ranks; the OmniVoice
+  sidecar passes the whole reference to the child's ``model.generate()`` with
+  no prompt cache, so EVERY call on a long reference ranks again
+  (``ranks_every_call``).
 
 What is NOT a per-voice cold cost, from reading the code and measuring: the
 OmniVoice sidecar has no prompt cache and encodes the reference on every call,
 so a longer reference costs more on EVERY call; that is modelled as sequence
 length (services/render_fit.py), not as a cold start. The native path's prompt
-cache saves about 0.4 s per new voice, below timing noise, so it is not flagged.
+cache saves about 0.4 s per new short voice, below timing noise, so it is not
+flagged.
 An adapter that reloads weights without replacing an attribute we can see is
 not detected; its first call after such a reload is recorded as warm.
 """
@@ -165,18 +172,54 @@ def engine_is_warm(backend_cls: Any) -> bool:
         return False
 
 
+def ranks_every_call(backend_cls: Any) -> bool:
+    """True for the OmniVoice sidecar (the effective ``omnivoice`` on MPS, and
+    the opt-in ``omnivoice-subprocess``): it hands the whole reference to the
+    child's ``model.generate()``, which has no prompt cache, so a long
+    reference's passage is ranked again inside every call."""
+    try:
+        from engines.omnivoice_subprocess import OmniVoiceSubprocessBackend
+    except Exception:  # noqa: BLE001 - the sidecar package is optional
+        return False
+    return isinstance(backend_cls, type) and issubclass(backend_cls, OmniVoiceSubprocessBackend)
+
+
+def _prompt_remembered(ref_path: str) -> bool:
+    """True when the in-process prompt cache (memory, else disk) already holds
+    this reference's encoded prompt, so the next call reuses its passage.
+
+    Mirrors ``tts_backend._get_clone_prompt``: a long reference's whole-clip
+    transcript is dropped before the key is made, and /generate and the
+    audiobook renderer always encode with ``preprocess_prompt=True``. Read-only:
+    never creates the cache directory, loads, or encodes anything."""
+    import os
+
+    from services import tts_backend
+
+    key = tts_backend._clone_prompt_key(ref_path, None, True)
+    with tts_backend._prompt_cache_lock:
+        if key in tts_backend._prompt_cache:
+            return True
+    if os.environ.get("OMNIVOICE_PROMPT_DISK_CACHE", "1") == "0":
+        return False
+    from core.config import DATA_DIR
+
+    cache_dir = os.path.join(str(DATA_DIR), "prompt_cache")
+    return os.path.isfile(tts_backend._prompt_disk_path(cache_dir, key))
+
+
 def voice_needs_passage(backend_cls: Any, ref_path: Optional[str]) -> bool:
-    """True when the next call on this reference will first rank its passage."""
+    """True when the next call on this reference will rank its passage."""
     if not ref_path or not omnivoice_family(backend_cls):
         return False
     cap = getattr(backend_cls, "max_ref_seconds", None)
     raw = reference_seconds(ref_path)
     if not cap or raw is None or raw <= cap:
         return False
+    if ranks_every_call(backend_cls):
+        return True
     try:
-        from services.tts_backend import _recall_passage
-
-        return _recall_passage(ref_path) is None
+        return not _prompt_remembered(ref_path)
     except Exception:  # noqa: BLE001
         return False
 
@@ -202,5 +245,5 @@ def _reset_for_tests() -> None:
 __all__ = [
     "LOAD", "VOICE", "call_shape", "cold_kind", "effective_reference_seconds",
     "engine_is_warm", "is_warm", "live_runtime", "mark_warm", "omnivoice_family",
-    "reference_seconds", "runtime_token", "voice_needs_passage",
+    "ranks_every_call", "reference_seconds", "runtime_token", "voice_needs_passage",
 ]
