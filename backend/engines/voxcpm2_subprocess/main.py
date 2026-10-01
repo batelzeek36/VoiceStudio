@@ -40,6 +40,14 @@ _TRANSIENT_MARKERS = (
     "remoteprotocolerror", "temporarily unavailable",
 )
 
+#: Exit code for "the accelerator is gone": the parent relaunches a dead sidecar
+#: on the next request, which is the only way back to a working CUDA context.
+FATAL_DEVICE_EXIT = 70
+#: A device error after which this process cannot synthesize again. Out of
+#: memory is NOT one of them ("CUDA out of memory"): the next, shorter request
+#: can succeed in the same process.
+_FATAL_DEVICE_MARKERS = ("cuda error", "device-side assert", "cudnn_status_")
+
 _MODEL = None
 
 # -- wire protocol -----------------------------------------------------------
@@ -226,6 +234,21 @@ def _handle_synthesize(msg: dict, stdout) -> None:
     })
 
 
+def _is_fatal_device_error(exc: BaseException) -> bool:
+    """True when the error means the process's accelerator context is broken.
+
+    Seen on an RTX 5080 laptop: a corrected PCI Express error made every later
+    call fail with "CUDA error: unknown error", and the sidecar stayed alive
+    answering errors while still holding 22 GB of committed memory. A CUDA
+    context does not recover inside its process, so the honest answer is to
+    report the error and exit; the parent respawns a clean sidecar.
+    """
+    if type(exc).__name__ == "AcceleratorError":
+        return True
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return any(marker in text for marker in _FATAL_DEVICE_MARKERS)
+
+
 # -- main loop ---------------------------------------------------------------
 
 
@@ -271,6 +294,9 @@ def main() -> int:
                 "message": f"{type(exc).__name__}: {exc}",
                 "traceback": traceback.format_exc(),
             })
+            if _is_fatal_device_error(exc):
+                # The caller has its error frame; do not stay up broken.
+                return FATAL_DEVICE_EXIT
 
 
 if __name__ == "__main__":

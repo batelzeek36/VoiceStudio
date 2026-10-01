@@ -268,3 +268,63 @@ def test_both_adapters_follow_native_modes(monkeypatch, text, options, expected_
     assert sidecar_call['prompt_wav_path'] == (options['ref_audio'] if continuation else None)
     assert sidecar_call['prompt_text'] == (options['ref_text'] if continuation else None)
     assert engine.supports_voice_design
+
+
+def _run_main(sidecar, monkeypatch, requests):
+    """Drive main() over in-memory pipes; returns (exit code, frames it sent)."""
+    payload = b"".join(struct.pack("!I", len(body)) + body
+                       for body in (json.dumps(r).encode() for r in requests))
+    out = io.BytesIO()
+    monkeypatch.setattr(sidecar.sys, "stdin", types.SimpleNamespace(buffer=io.BytesIO(payload)))
+    monkeypatch.setattr(sidecar.os, "dup", lambda fd: 99)
+    monkeypatch.setattr(sidecar.os, "dup2", lambda a, b: None)
+    monkeypatch.setattr(sidecar.os, "fdopen", lambda fd, mode: out)
+    monkeypatch.setattr(out, "close", lambda: None, raising=False)
+    return sidecar.main(), _frames(out)
+
+
+def test_a_fatal_cuda_error_reports_then_exits_so_the_parent_respawns(monkeypatch):
+    sidecar = _load_sidecar(monkeypatch, [])
+
+    class AcceleratorError(RuntimeError):
+        pass
+
+    def broken(msg, stdout):
+        raise AcceleratorError("CUDA error: unknown error")
+
+    monkeypatch.setattr(sidecar, "_handle_synthesize", broken)
+    code, frames = _run_main(sidecar, monkeypatch, [
+        {"op": "synthesize", "text": "one"},
+        {"op": "synthesize", "text": "never reached"},
+    ])
+    assert code == sidecar.FATAL_DEVICE_EXIT
+    errors = [f for f in frames if f["op"] == "error"]
+    assert len(errors) == 1 and "CUDA error" in errors[0]["message"]
+
+
+def test_an_ordinary_error_keeps_the_sidecar_up(monkeypatch):
+    sidecar = _load_sidecar(monkeypatch, [])
+    seen = []
+
+    def flaky(msg, stdout):
+        seen.append(msg["text"])
+        raise ValueError("synthesize: bad option")
+
+    monkeypatch.setattr(sidecar, "_handle_synthesize", flaky)
+    code, frames = _run_main(sidecar, monkeypatch, [
+        {"op": "synthesize", "text": "one"},
+        {"op": "synthesize", "text": "two"},
+    ])
+    assert code == 0 and seen == ["one", "two"]
+    assert [f["op"] for f in frames] == ["ready", "error", "error"]
+
+
+@pytest.mark.parametrize("exc, fatal", [
+    (RuntimeError("CUDA error: device-side assert triggered"), True),
+    (RuntimeError("cuDNN error: CUDNN_STATUS_EXECUTION_FAILED"), True),
+    (RuntimeError("CUDA out of memory. Tried to allocate 2.00 GiB"), False),
+    (ValueError("synthesize: missing or non-string 'text'"), False),
+])
+def test_only_a_broken_device_counts_as_fatal(monkeypatch, exc, fatal):
+    sidecar = _load_sidecar(monkeypatch, [])
+    assert sidecar._is_fatal_device_error(exc) is fatal
